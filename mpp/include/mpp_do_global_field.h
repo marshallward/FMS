@@ -1,28 +1,10 @@
-!***********************************************************************
-!*                   GNU Lesser General Public License
-!*
-!* This file is part of the GFDL Flexible Modeling System (FMS).
-!*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
-!*
-!* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
-!***********************************************************************
     subroutine MPP_DO_GLOBAL_FIELD_3D_( domain, local, global, tile, ishift, jshift, flags, default_data)
 !get a global field from a local field
 !local field may be on compute OR data domain
       type(domain2D), intent(in)    :: domain
-      MPP_TYPE_, intent(in)         ::  local(:,:,:)
       integer, intent(in)           :: tile, ishift, jshift
-      MPP_TYPE_, intent(out)        :: global(domain%x(tile)%global%begin:,domain%y(tile)%global%begin:,:)
+      MPP_TYPE_, intent(in),  contiguous, target :: local(:,:,:)
+      MPP_TYPE_, intent(out), contiguous, target :: global(domain%x(tile)%global%begin:,domain%y(tile)%global%begin:,:)
       integer, intent(in), optional :: flags
       MPP_TYPE_, intent(in), optional :: default_data
 
@@ -35,6 +17,19 @@
       integer :: stackuse
       character(len=8) :: text
 
+      ! Alltoallw vectors
+      integer, dimension(:), allocatable :: sendcounts(:), recvcounts(:)
+      integer, dimension(:), allocatable :: sdispls(:), rdispls(:)
+      integer, dimension(:), allocatable :: sendtypes(:), recvtypes(:)
+      integer, dimension(3) :: array_of_subsizes, array_of_starts
+      integer :: isize, jsize, ihalo, jhalo
+      integer :: isg, jsg
+      integer :: ierr
+      integer, allocatable :: pelist(:)
+      integer :: npes
+      MPP_TYPE_, dimension(:), pointer :: plocal, pglobal
+
+      ! Cray pointers
       pointer( ptr_local,  clocal  ) 
       pointer( ptr_remote, cremote )
 
@@ -161,20 +156,27 @@
              rpos = mod(domain%x(1)%pos   +n,nd)
              from_pe = domain%x(1)%list(rpos)%pe
              rpos = from_pe - root_pe ! for concurrent run, root_pe may not be 0.
-             nwords = (domain%list(rpos)%x(1)%compute%size+ishift) * (domain%list(rpos)%y(1)%compute%size+jshift) * ke
+             if (from_pe == NULL_PE) then
+                nwords = 0
+             else
+                nwords = (domain%list(rpos)%x(1)%compute%size+ishift) &
+                       * (domain%list(rpos)%y(1)%compute%size+jshift) * ke
+             endif
            ! Force use of scalar, integer ptr interface
              call mpp_transmit( put_data=clocal(1), plen=nword_me, to_pe=domain%x(1)%list(lpos)%pe, &
                                 get_data=cremote(1), glen=nwords, from_pe=from_pe )
              m = 0
-             is = domain%list(rpos)%x(1)%compute%begin; ie = domain%list(rpos)%x(1)%compute%end+ishift
-             do k = 1, ke
-                do j = jsc, jec
-                   do i = is, ie
-                      m = m + 1
-                      global(i,j+jpos,k) = cremote(m)
+             if (from_pe /= NULL_PE) then
+                is = domain%list(rpos)%x(1)%compute%begin; ie = domain%list(rpos)%x(1)%compute%end+ishift
+                do k = 1, ke
+                   do j = jsc, jec
+                      do i = is, ie
+                         m = m + 1
+                         global(i,j+jpos,k) = cremote(m)
+                      end do
                    end do
                 end do
-             end do
+             endif
              call mpp_sync_self()  !-ensure MPI_ISEND is done.
           end do
       else if( yonly )then
@@ -184,49 +186,168 @@
              rpos = mod(domain%y(1)%pos   +n,nd)
              from_pe = domain%y(1)%list(rpos)%pe
              rpos = from_pe - root_pe
-             nwords = (domain%list(rpos)%x(1)%compute%size+ishift) &
-                    * (domain%list(rpos)%y(1)%compute%size+jshift) * ke
+             if (from_pe == NULL_PE) then
+                nwords = 0
+             else
+                nwords = (domain%list(rpos)%x(1)%compute%size+ishift) &
+                       * (domain%list(rpos)%y(1)%compute%size+jshift) * ke
+             endif
            ! Force use of scalar, integer pointer interface
              call mpp_transmit( put_data=clocal(1), plen=nword_me, to_pe=domain%y(1)%list(lpos)%pe, &
                                 get_data=cremote(1), glen=nwords, from_pe=from_pe )
              m = 0
-             js = domain%list(rpos)%y(1)%compute%begin; je = domain%list(rpos)%y(1)%compute%end+jshift
-             do k = 1,ke
-                do j = js, je
-                   do i = isc, iec
-                      m = m + 1
-                      global(i+ipos,j,k) = cremote(m)
-                   end do
-                end do
-             end do
+             if (from_pe /= NULL_PE) then
+                 js = domain%list(rpos)%y(1)%compute%begin; je = domain%list(rpos)%y(1)%compute%end+jshift
+                 do k = 1,ke
+                    do j = js, je
+                       do i = isc, iec
+                          m = m + 1
+                          global(i+ipos,j,k) = cremote(m)
+                       end do
+                    end do
+                 end do
+             endif
              call mpp_sync_self()  !-ensure MPI_ISEND is done.
           end do
       else
          tile_id = domain%tile_id(1)
          nd = size(domain%list(:))
-         if(root_only) then
-            if(domain%pe .NE. domain%tile_root_pe) then
-               call mpp_send( clocal(1), plen=nword_me, to_pe=domain%tile_root_pe, tag=COMM_TAG_1 )
-            else
-               do n = 1,nd-1
-                  rpos = mod(domain%pos+n,nd)
-                  if( domain%list(rpos)%tile_id(1) .NE. tile_id ) cycle
-                  nwords = (domain%list(rpos)%x(1)%compute%size+ishift) * (domain%list(rpos)%y(1)%compute%size+jshift) * ke
-                  call mpp_recv(cremote(1), glen=nwords, from_pe=domain%list(rpos)%pe, tag=COMM_TAG_1 )
-                  m = 0
-                  is = domain%list(rpos)%x(1)%compute%begin; ie = domain%list(rpos)%x(1)%compute%end+ishift
-                  js = domain%list(rpos)%y(1)%compute%begin; je = domain%list(rpos)%y(1)%compute%end+jshift
 
-                  do k = 1,ke
-                     do j = js, je
-                        do i = is, ie
-                           m = m + 1
-                           global(i,j,k) = cremote(m)
-                        end do
-                     end do
-                  end do
-               end do
-            endif
+         if(root_only) then
+            ! TODO: Trial MPI_alltoallw code
+            ! NOTE: Defining types makes the prior clocal/cglobal setup code
+            ! unnecessary, so this ought to be done earlier.
+            ! If this all works out then we will do all this a bit more
+            ! strategically.
+
+            ! Global index
+            isg = domain%x(1)%global%begin
+            jsg = domain%y(1)%global%begin
+
+            ! Prepare the MPI buffers
+            !   Initialize with inert values
+            !   TODO: What type to use?
+            !         Do I even need to initalise types?
+            allocate(sendcounts(0:nd-1))
+            allocate(sdispls(0:nd-1))
+            allocate(sendtypes(0:nd-1))
+            sendcounts(:) = 0
+            sdispls(:) = 0
+            sendtypes(:) = 0    ! MPI_BYTE
+
+            allocate(recvcounts(0:nd-1))
+            allocate(rdispls(0:nd-1))
+            allocate(recvtypes(0:nd-1))
+            recvcounts(:) = 0
+            rdispls(:) = 0
+            recvtypes(:) = 0    ! MPI_BYTE
+
+            if (domain%pe .NE. domain%tile_root_pe) then
+                ! Rank/PE test
+                isize = iec - isc + 1
+                jsize = jec - jsc + 1
+                ihalo = isc + ioff - 1
+                jhalo = jsc + joff - 1
+
+                ! Send one subarray to rank 0
+                sendcounts(0) = 1
+                sdispls(0) = 0
+
+                array_of_subsizes = [isize, jsize, size(local, 3)]
+                array_of_starts = [ihalo, jhalo, 0]
+
+                call mpp_type_create( &
+                    local, &
+                    array_of_subsizes, &
+                    array_of_starts, &
+                    sendtypes(0) &
+                )
+            else
+            !if (domain%pe .EQ. domain%tile_root_pe) then
+                ! Receive subarrays from all other ranks
+
+                ! Each rank receives one MPI subarray type
+                !recvcounts(:) = 1
+
+                !do n = 0, nd - 1
+                do n = 1, nd - 1
+                    ! Each rank receives one MPI subarray type
+                    recvcounts(n) = 1
+                    rdispls(n) = 0
+
+                    ! Index to rank
+                    rpos = mod(domain%pos + n, nd)
+                    is = domain%list(rpos)%x(1)%compute%begin
+                    ie = domain%list(rpos)%x(1)%compute%end + ishift
+                    js = domain%list(rpos)%y(1)%compute%begin
+                    je = domain%list(rpos)%y(1)%compute%end + jshift
+
+                    isize = ie - is + 1
+                    jsize = je - js + 1
+
+                    array_of_subsizes = [isize, jsize, ke]
+                    array_of_starts = [is - isg, js - jsg, 0]
+
+                    call mpp_type_create( &
+                        global, &
+                        array_of_subsizes, &
+                        array_of_starts, &
+                        recvtypes(n) &
+                    )
+                end do
+            end if
+
+            npes = mpp_get_domain_npes(domain)
+            allocate(pelist(npes))
+            call mpp_get_pelist(domain, pelist)
+
+            plocal(1:size(local)) => local
+            pglobal(1:size(global)) => global
+
+            call mpp_alltoall(plocal, sendcounts, sdispls, sendtypes, &
+                              pglobal, recvcounts, rdispls, recvtypes, &
+                              pelist)
+
+            plocal => null()
+            pglobal => null()
+
+            ! Point-to-point method
+
+            !if(domain%pe .NE. domain%tile_root_pe) then
+            !   call mpp_send( clocal(1), plen=nword_me, to_pe=domain%tile_root_pe, tag=COMM_TAG_1 )
+            !else
+            !   do n = 1,nd-1
+            !      rpos = mod(domain%pos+n,nd)
+            !      if( domain%list(rpos)%tile_id(1) .NE. tile_id ) cycle
+            !      nwords = (domain%list(rpos)%x(1)%compute%size+ishift) * (domain%list(rpos)%y(1)%compute%size+jshift) * ke
+            !      call mpp_recv(cremote(1), glen=nwords, from_pe=domain%list(rpos)%pe, tag=COMM_TAG_1 )
+            !      m = 0
+            !      is = domain%list(rpos)%x(1)%compute%begin; ie = domain%list(rpos)%x(1)%compute%end+ishift
+            !      js = domain%list(rpos)%y(1)%compute%begin; je = domain%list(rpos)%y(1)%compute%end+jshift
+
+            !      do k = 1,ke
+            !         do j = js, je
+            !            do i = is, ie
+            !               m = m + 1
+            !               global(i,j,k) = cremote(m)
+            !            end do
+            !         end do
+            !      end do
+            !   end do
+            !endif
+
+            !if (domain%pe .EQ. domain%tile_root_pe) then
+            !    do n = 1, nd - 1
+            !        call mpp_type_free(recvtypes(n))
+            !    end do
+            !else
+            !    call mpp_type_free(sendtypes(0))
+            !end if
+
+            ! Cleanup
+            deallocate(pelist)
+            deallocate(sendcounts, sdispls, sendtypes)
+            deallocate(recvcounts, rdispls, recvtypes)
          else
             do n = 1,nd-1
                lpos = mod(domain%pos+nd-n,nd)

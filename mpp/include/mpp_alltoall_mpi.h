@@ -23,7 +23,6 @@ subroutine MPP_ALLTOALL_(sbuf, scount, rbuf, rcount, pelist)
     MPP_TYPE_, intent(inout) :: rbuf(:)
     integer,   intent(in) :: scount, rcount
    
-
     integer, intent(in), optional :: pelist(0:)
     integer :: n
 
@@ -60,14 +59,14 @@ subroutine MPP_ALLTOALLV_(sbuf, ssize, sdispl, rbuf, rsize, rdispl, pelist)
     integer :: n
 
     if (.NOT. module_is_initialized) &
-        call mpp_error(FATAL, 'MPP_ALLTOALL: You must first call mpp_init.')
+        call mpp_error(FATAL, 'MPP_ALLTOALLV_: You must first call mpp_init.')
 
     n = get_peset(pelist)
 !    if (peset(n)%count .eq. 1) return
 
     if (current_clock .NE. 0) call SYSTEM_CLOCK(start_tick)
 
-    if (verbose) call mpp_error(NOTE, 'MPP_ALLTOALL_: using MPI_Alltoallv...')
+    if (verbose) call mpp_error(NOTE, 'MPP_ALLTOALLV_: using MPI_Alltoallv...')
 
     call MPI_Alltoallv(sbuf, ssize, sdispl, MPI_TYPE_, &
                        rbuf, rsize, rdispl, MPI_TYPE_, &
@@ -77,3 +76,48 @@ subroutine MPP_ALLTOALLV_(sbuf, ssize, sdispl, rbuf, rsize, rdispl, pelist)
         call increment_current_clock(EVENT_ALLTOALL, MPP_TYPE_BYTELEN_)
 
 end subroutine MPP_ALLTOALLV_
+
+
+subroutine MPP_ALLTOALLW_(sbuf, ssize, sdispl, stype, &
+                          rbuf, rsize, rdispl, rtype, pelist)
+
+    MPP_TYPE_, intent(in) :: sbuf(:)
+    MPP_TYPE_, intent(inout) :: rbuf(:)
+
+    integer, intent(in) :: ssize(:), rsize(:)
+    integer, intent(in) :: sdispl(:), rdispl(:)
+    integer, intent(in) :: stype(:), rtype(:)
+    integer, intent(in), optional :: pelist(0:)
+    integer :: i, n
+
+    integer, allocatable :: sendtypes(:), recvtypes(:)
+
+    if (.NOT. module_is_initialized) &
+        call mpp_error(FATAL, 'MPP_ALLTOALLW_: You must first call mpp_init.')
+
+    n = get_peset(pelist)
+    if (peset(n)%count .eq. 1) return
+
+    if (current_clock .NE. 0) call SYSTEM_CLOCK(start_tick)
+
+    if (verbose) call mpp_error(NOTE, 'MPP_ALLTOALLW_: using MPI_Alltoallw...')
+
+    ! Convert FMS datatype IDs to MPI datatype IDs
+    ! NOTE: sendtypes and recvtypes must be the same size
+    allocate(sendtypes(size(stype)))
+    allocate(recvtypes(size(rtype)))
+    do i = 1, size(stype)
+        sendtypes(i) = datatypes(stype(i))%id
+        recvtypes(i) = datatypes(rtype(i))%id
+    end do
+
+    call MPI_Alltoallw(sbuf, ssize, sdispl, sendtypes, &
+                       rbuf, rsize, rdispl, recvtypes, &
+                       peset(n)%id, error)
+
+    deallocate(sendtypes, recvtypes)
+
+    if (current_clock .NE. 0) &
+        call increment_current_clock(EVENT_ALLTOALL, MPP_TYPE_BYTELEN_)
+
+end subroutine MPP_ALLTOALLW_

@@ -184,6 +184,7 @@ module mpp_mod
   use mpp_parameter_mod, only : MAX_EVENTS, MAX_BINS, MAX_EVENT_TYPES, MAX_CLOCKS
   use mpp_parameter_mod, only : MAXPES, EVENT_WAIT, EVENT_ALLREDUCE, EVENT_BROADCAST
   use mpp_parameter_mod, only : EVENT_ALLTOALL
+  use mpp_parameter_mod, only : EVENT_TYPE_CREATE, EVENT_TYPE_FREE
   use mpp_parameter_mod, only : EVENT_RECV, EVENT_SEND, MPP_READY, MPP_WAIT
   use mpp_parameter_mod, only : mpp_parameter_version=>version
   use mpp_parameter_mod, only : DEFAULT_TAG
@@ -238,6 +239,7 @@ private
   public :: mpp_chksum, mpp_max, mpp_min, mpp_sum, mpp_transmit, mpp_send, mpp_recv
   public :: mpp_broadcast, mpp_malloc, mpp_init, mpp_exit
   public :: mpp_gather, mpp_scatter, mpp_alltoall
+  public :: mpp_type_create, mpp_type_free
 #ifdef use_MPI_GSM
   public :: mpp_gsm_malloc, mpp_gsm_free
 #endif
@@ -295,6 +297,20 @@ private
      character(len=16)         :: name
      type (Clock_Data_Summary) :: event(MAX_EVENT_TYPES)
   end type Summary_Struct
+
+  ! Message data types for generalized data transfer
+  type :: datatype
+     private
+     !character(len=16) :: name
+     !integer, pointer :: list(:) => NULL()
+     integer :: counter ! Number of domains using this type
+     integer :: ndims
+     integer, allocatable :: sizes(:)
+     integer, allocatable :: subsizes(:)
+     integer, allocatable :: starts(:)
+     integer :: etype   ! Elementary datatype
+     integer :: id      ! ID within message passing lib (e.g. MPI)
+  end type datatype
 
 !***********************************************************************
 !
@@ -541,6 +557,21 @@ private
   ! </SUBROUTINE>
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                                                                             !
+!              DATA TRANSFER TYPES: mpp_type_create                           !
+!                                                                             !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  interface mpp_type_create
+      module procedure mpp_type_create_int4
+      module procedure mpp_type_create_int8
+      module procedure mpp_type_create_real4
+      module procedure mpp_type_create_real8
+      module procedure mpp_type_create_logical4
+      module procedure mpp_type_create_logical8
+  end interface mpp_type_create
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !                                                                             !
   !            GLOBAL REDUCTION ROUTINES: mpp_max, mpp_sum, mpp_min             !
   !                                                                             !
@@ -730,10 +761,20 @@ private
      module procedure mpp_alltoall_int8
      module procedure mpp_alltoall_real4
      module procedure mpp_alltoall_real8
+     module procedure mpp_alltoall_logical4
+     module procedure mpp_alltoall_logical8
      module procedure mpp_alltoall_int4_v
      module procedure mpp_alltoall_int8_v
      module procedure mpp_alltoall_real4_v
      module procedure mpp_alltoall_real8_v
+     module procedure mpp_alltoall_logical4_v
+     module procedure mpp_alltoall_logical8_v
+     module procedure mpp_alltoall_int4_w
+     module procedure mpp_alltoall_int8_w
+     module procedure mpp_alltoall_real4_w
+     module procedure mpp_alltoall_real8_w
+     module procedure mpp_alltoall_logical4_w
+     module procedure mpp_alltoall_logical8_w
   end interface
 
 
@@ -1207,6 +1248,10 @@ private
   integer              :: error
   integer              :: clock_num=0, num_clock_ids=0,current_clock=0, previous_clock(MAX_CLOCKS)=0
   real                 :: tick_rate
+
+  type(datatype), allocatable :: datatypes(:)
+  integer              :: current_datatype_max = 100000
+  integer              :: current_datatype_num = 0
 
   integer              :: cur_send_request = 0
   integer              :: cur_recv_request = 0
