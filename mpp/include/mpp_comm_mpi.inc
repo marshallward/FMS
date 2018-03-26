@@ -35,6 +35,14 @@
   integer                       :: unit_begin, unit_end, unit_nml, io_status
   character(len=5) :: this_pe
 
+  ! Elementary MPI datatypes used in FMS, expand as needed
+  integer, parameter, dimension(0:6) :: elem_types = [ &
+      MPI_BYTE, &
+      MPI_INTEGER4, MPI_INTEGER8, &
+      MPI_REAL4, MPI_REAL8, &
+      MPI_COMPLEX, MPI_DOUBLE_COMPLEX &
+  ]
+
   if( module_is_initialized )return
 
   call MPI_INITIALIZED( opened, error ) !in case called from another MPI package
@@ -78,6 +86,20 @@
   call SYSTEM_CLOCK( count=tick0, count_rate=ticks_per_sec, count_max=max_ticks )
   tick_rate = 1./ticks_per_sec
   clock0 = mpp_clock_id( 'Total runtime', flags=MPP_CLOCK_SYNC )
+
+  ! Initialize datatypes
+  allocate(datatypes(0:current_datatype_max))
+
+  ! Add the elementary datatypes
+  ! NOTE: datatypes(0) is intended to denote MPI_BYTE, since it is the most
+  !       data-agnostic MPI type
+  ! TODO: Assert current_datatype_max > size(elem_types)
+  do i = 0, size(elem_types) - 1
+     datatypes(i)%etype = elem_types(i)
+     datatypes(i)%id = elem_types(i)
+     ! TODO: Other fields?
+  end do
+  current_datatype_num = size(elem_types) - 1
 
   if( PRESENT(flags) )then
      debug   = flags.EQ.MPP_DEBUG
@@ -1141,11 +1163,13 @@ end subroutine mpp_gsm_free
 
 #undef MPP_ALLTOALL_
 #undef MPP_ALLTOALLV_
+#undef MPP_ALLTOALLW_
 #undef MPP_TYPE_
 #undef MPP_TYPE_BYTELEN_
 #undef MPI_TYPE_
 #define MPP_ALLTOALL_ mpp_alltoall_int4
 #define MPP_ALLTOALLV_ mpp_alltoall_int4_v
+#define MPP_ALLTOALLW_ mpp_alltoall_int4_w
 #define MPP_TYPE_ integer(INT_KIND)
 #define MPP_TYPE_BYTELEN_ 4
 #define MPI_TYPE_ MPI_INTEGER4
@@ -1153,11 +1177,13 @@ end subroutine mpp_gsm_free
 
 #undef MPP_ALLTOALL_
 #undef MPP_ALLTOALLV_
+#undef MPP_ALLTOALLW_
 #undef MPP_TYPE_
 #undef MPP_TYPE_BYTELEN_
 #undef MPI_TYPE_
 #define MPP_ALLTOALL_ mpp_alltoall_int8
 #define MPP_ALLTOALLV_ mpp_alltoall_int8_v
+#define MPP_ALLTOALLW_ mpp_alltoall_int8_w
 #define MPP_TYPE_ integer(LONG_KIND)
 #define MPP_TYPE_BYTELEN_ 8
 #define MPI_TYPE_ MPI_INTEGER8
@@ -1165,11 +1191,13 @@ end subroutine mpp_gsm_free
 
 #undef MPP_ALLTOALL_
 #undef MPP_ALLTOALLV_
+#undef MPP_ALLTOALLW_
 #undef MPP_TYPE_
 #undef MPP_TYPE_BYTELEN_
 #undef MPI_TYPE_
 #define MPP_ALLTOALL_ mpp_alltoall_real4
 #define MPP_ALLTOALLV_ mpp_alltoall_real4_v
+#define MPP_ALLTOALLW_ mpp_alltoall_real4_w
 #define MPP_TYPE_ real(FLOAT_KIND)
 #define MPP_TYPE_BYTELEN_ 4
 #define MPI_TYPE_ MPI_REAL4
@@ -1177,12 +1205,119 @@ end subroutine mpp_gsm_free
 
 #undef MPP_ALLTOALL_
 #undef MPP_ALLTOALLV_
+#undef MPP_ALLTOALLW_
 #undef MPP_TYPE_
 #undef MPP_TYPE_BYTELEN_
 #undef MPI_TYPE_
 #define MPP_ALLTOALL_ mpp_alltoall_real8
 #define MPP_ALLTOALLV_ mpp_alltoall_real8_v
+#define MPP_ALLTOALLW_ mpp_alltoall_real8_w
 #define MPP_TYPE_ real(DOUBLE_KIND)
 #define MPP_TYPE_BYTELEN_ 8
 #define MPI_TYPE_ MPI_REAL8
 #include <mpp_alltoall_mpi.h>
+
+#undef MPP_ALLTOALL_
+#undef MPP_ALLTOALLV_
+#undef MPP_ALLTOALLW_
+#undef MPP_TYPE_
+#undef MPP_TYPE_BYTELEN_
+#undef MPI_TYPE_
+#define MPP_ALLTOALL_ mpp_alltoall_logical4
+#define MPP_ALLTOALLV_ mpp_alltoall_logical4_v
+#define MPP_ALLTOALLW_ mpp_alltoall_logical4_w
+#define MPP_TYPE_ logical(INT_KIND)
+#define MPP_TYPE_BYTELEN_ 4
+#define MPI_TYPE_ MPI_INTEGER4
+#include <mpp_alltoall_mpi.h>
+
+#undef MPP_ALLTOALL_
+#undef MPP_ALLTOALLV_
+#undef MPP_ALLTOALLW_
+#undef MPP_TYPE_
+#undef MPP_TYPE_BYTELEN_
+#undef MPI_TYPE_
+#define MPP_ALLTOALL_ mpp_alltoall_logical8
+#define MPP_ALLTOALLV_ mpp_alltoall_logical8_v
+#define MPP_ALLTOALLW_ mpp_alltoall_logical8_w
+#define MPP_TYPE_ logical(LONG_KIND)
+#define MPP_TYPE_BYTELEN_ 8
+#define MPI_TYPE_ MPI_INTEGER8
+#include <mpp_alltoall_mpi.h>
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                                                                             !
+!            DATA TRANSFER TYPES: mpp_type_create, mpp_type_free              !
+!                                                                             !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+#define MPP_TYPE_CREATE_ mpp_type_create_int4
+#define MPP_TYPE_ integer(INT_KIND)
+#define MPI_TYPE_ MPI_INTEGER4
+#include <mpp_type_mpi.h>
+
+#define MPP_TYPE_CREATE_ mpp_type_create_int8
+#define MPP_TYPE_ integer(LONG_KIND)
+#define MPI_TYPE_ MPI_INTEGER8
+#include <mpp_type_mpi.h>
+
+#define MPP_TYPE_CREATE_ mpp_type_create_real4
+#define MPP_TYPE_ real(FLOAT_KIND)
+#define MPI_TYPE_ MPI_REAL4
+#include <mpp_type_mpi.h>
+
+#define MPP_TYPE_CREATE_ mpp_type_create_real8
+#define MPP_TYPE_ real(DOUBLE_KIND)
+#define MPI_TYPE_ MPI_REAL8
+#include <mpp_type_mpi.h>
+
+#define MPP_TYPE_CREATE_ mpp_type_create_logical4
+#define MPP_TYPE_ logical(INT_KIND)
+#define MPI_TYPE_ MPI_INTEGER4
+#include <mpp_type_mpi.h>
+
+#define MPP_TYPE_CREATE_ mpp_type_create_logical8
+#define MPP_TYPE_ logical(LONG_KIND)
+#define MPI_TYPE_ MPI_INTEGER8
+#include <mpp_type_mpi.h>
+
+! Clear preprocessor flags
+#undef MPI_TYPE_
+#undef MPP_TYPE_
+#undef MPP_TYPE_CREATE_
+
+subroutine mpp_type_free(dtype)
+    integer, intent(in) :: dtype
+
+    if (.NOT. module_is_initialized) &
+        call mpp_error(FATAL, 'mpp_type_free: You must first call mpp_init.')
+
+    if (current_clock .NE. 0) &
+        call SYSTEM_CLOCK(start_tick)
+
+    if (verbose) &
+        call mpp_error(NOTE, 'mpp_type_free: using MPI_Type_free...')
+
+    ! Decrement the reference counter
+    datatypes(dtype)%counter = datatypes(dtype)%counter - 1
+
+    if (datatypes(dtype)%counter < 1) then
+        call MPI_Type_free(datatypes(dtype)%id, error)
+        !deallocate(datatypes(dtype)%sizes)
+        !deallocate(datatypes(dtype)%subsizes)
+        !deallocate(datatypes(dtype)%starts)
+
+        ! TODO: Indicate a null entry?
+        ! TODO: How to remove without breaking existing indices?
+        datatypes(dtype)%ndims = -1
+        datatypes(dtype)%sizes(:) = -1
+        datatypes(dtype)%subsizes(:) = -1
+        datatypes(dtype)%starts(:) = -1
+        datatypes(dtype)%etype = -1
+        datatypes(dtype)%id = -1
+    end if
+
+    if (current_clock .NE. 0) &
+        call increment_current_clock(EVENT_TYPE_FREE, MPP_TYPE_BYTELEN_)
+
+end subroutine mpp_type_free

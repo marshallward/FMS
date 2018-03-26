@@ -497,6 +497,8 @@
 #include <mpp_global_field.h>
 
 !****************************************************
+! TODO: MPI_TYPE_ should not be here
+!       Only here until MPI_Type_* functions get wrappers in mpp.F90
 #undef MPP_DO_GLOBAL_FIELD_3D_
 #define MPP_DO_GLOBAL_FIELD_3D_ mpp_do_global_field2D_r8_3d
 #undef MPP_TYPE_
@@ -556,4 +558,3 @@
 #define MPP_TYPE_ logical(INT_KIND)
 #include <mpp_do_global_field.h>
 #undef LOGICAL_VARIABLE
-
