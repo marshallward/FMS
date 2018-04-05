@@ -313,6 +313,12 @@ subroutine mpp_exit()
    close(etc_unit)
   endif
 
+  ! Clear derived data types
+  ! TODO: move elem_types out of init and into module, and replace 7 w/ size()
+  do i = 7, current_datatype_num
+     call mpp_type_free(i)
+  end do
+
   call mpp_set_current_pelist()
   call mpp_sync()
   call mpp_max(mpp_stack_hwm)

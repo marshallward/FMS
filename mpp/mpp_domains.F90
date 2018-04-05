@@ -2110,6 +2110,25 @@ end interface
      module procedure mpp_do_global_field2D_l4_3d
   end interface
 
+  interface mpp_do_global_field_a2a
+     module procedure mpp_do_global_field2D_a2a_r8_3d
+#ifdef OVERLOAD_C8
+     module procedure mpp_do_global_field2D_a2a_c8_3d
+#endif
+#ifndef no_8byte_integers
+     module procedure mpp_do_global_field2D_a2a_i8_3d
+     module procedure mpp_do_global_field2D_a2a_l8_3d
+#endif
+#ifdef OVERLOAD_R4
+     module procedure mpp_do_global_field2D_a2a_r4_3d
+#endif
+#ifdef OVERLOAD_C4
+     module procedure mpp_do_global_field2D_a2a_c4_3d
+#endif
+     module procedure mpp_do_global_field2D_a2a_i4_3d
+     module procedure mpp_do_global_field2D_a2a_l4_3d
+  end interface
+
   interface mpp_global_field_ug
      module procedure mpp_global_field2D_ug_r8_2d
      module procedure mpp_global_field2D_ug_r8_3d
