@@ -4,7 +4,6 @@ subroutine MPP_TYPE_CREATE_(field, array_of_subsizes, array_of_starts, &
     integer, intent(in) :: array_of_subsizes(:)
     integer, intent(in) :: array_of_starts(:)
     integer, intent(out) :: newtype_idx
-
     integer :: newtype      ! MPI datatype ID
     integer :: i            ! Type loop index
 

@@ -261,18 +261,14 @@
       type(domain2D), intent(in)    :: domain
       integer, intent(in)           :: tile, ishift, jshift
       MPP_TYPE_, intent(in), contiguous, target :: local(:,:,:)
-      MPP_TYPE_, intent(out), contiguous, target  :: global(domain%x(tile)%global%begin:,domain%y(tile)%global%begin:,:)
+      MPP_TYPE_, intent(out), contiguous, target :: global(domain%x(tile)%global%begin:,domain%y(tile)%global%begin:,:)
       integer, intent(in), optional :: flags
       MPP_TYPE_, intent(in), optional :: default_data
 
       integer :: i, j, k, m, n, nd, nwords, lpos, rpos, ioff, joff, from_pe, root_pe, tile_id
-      integer :: ke, isc, iec, jsc, jec, is, ie, js, je, nword_me
+      integer :: ke, isc, iec, jsc, jec, is, ie, js, je
       integer :: ipos, jpos
       logical :: xonly, yonly, root_only, global_on_this_pe
-      MPP_TYPE_ :: clocal ((domain%x(1)%compute%size+ishift)    *(domain%y(1)%compute%size+jshift)    *size(local,3))
-      MPP_TYPE_ :: cremote((domain%x(1)%compute%max_size+ishift)*(domain%y(1)%compute%max_size+jshift)*size(local,3))
-      integer :: stackuse
-      character(len=8) :: text
 
       ! Alltoallw vectors
       MPP_TYPE_, dimension(:), pointer :: plocal, pglobal
@@ -281,28 +277,14 @@
       integer, dimension(:), allocatable :: sdispls(:), rdispls(:)
       integer, dimension(:), allocatable :: sendtypes(:), recvtypes(:)
       integer, dimension(3) :: array_of_subsizes, array_of_starts
-      integer :: isize, jsize, ihalo, jhalo
+      integer :: n_sends, n_ax, pe
       integer :: isg, jsg
-      integer :: ierr
-      integer, allocatable :: pelist(:)
+      integer, allocatable :: pelist(:), axis_pelist(:), pelist_idx(:)
 
-      ! Cray pointers
-      pointer( ptr_local,  clocal  )
-      pointer( ptr_remote, cremote )
+      if (.NOT.module_is_initialized) &
+          call mpp_error( FATAL, 'MPP_GLOBAL_FIELD: must first call mpp_domains_init.' )
 
-      stackuse = size(clocal(:))+size(cremote(:))
-      if( stackuse.GT.mpp_domains_stack_size )then
-          write( text, '(i8)' )stackuse
-          call mpp_error( FATAL, &
-               'MPP_DO_GLOBAL_FIELD user stack overflow: call mpp_domains_set_stack_size('//trim(text)//') from all PEs.' )
-      end if
-      mpp_domains_stack_hwm = max( mpp_domains_stack_hwm, stackuse )
-
-      ptr_local  = LOC(mpp_domains_stack)
-      ptr_remote = LOC(mpp_domains_stack(size(clocal(:))+1))
-
-      if( .NOT.module_is_initialized )call mpp_error( FATAL, 'MPP_GLOBAL_FIELD: must first call mpp_domains_init.' )
-
+      ! Validate flag consistency and configure the function
       xonly = .FALSE.
       yonly = .FALSE.
       root_only = .FALSE.
@@ -323,6 +305,10 @@
       endif
 
       global_on_this_pe =  .NOT. root_only .OR. domain%pe == domain%tile_root_pe
+
+      ! Calculate offset for truncated global fields
+      ! NOTE: We do not check contiguity of global subarrays, and assume that
+      !       they have been copied to a contigous array.
       ipos = 0; jpos = 0
       if(global_on_this_pe ) then
          if(size(local,3).NE.size(global,3) ) call mpp_error( FATAL, &
@@ -344,6 +330,10 @@
          endif
       endif
 
+      ! TODO: Remove the +1/-1 correction
+      ! NOTE: Since local is assumed to contiguously match the data domain, this
+      !       is not a useful check.  But maybe someday we can support compute
+      !       domains.
       if( size(local,1).EQ.(domain%x(tile)%compute%size+ishift) .AND. size(local,2).EQ.(domain%y(tile)%compute%size+jshift) )then
          !local is on compute domain
          ioff = -domain%x(tile)%compute%begin + 1
@@ -359,11 +349,8 @@
       ke  = size(local,3)
       isc = domain%x(tile)%compute%begin; iec = domain%x(tile)%compute%end+ishift
       jsc = domain%y(tile)%compute%begin; jec = domain%y(tile)%compute%end+jshift
+      isg = domain%x(1)%global%begin; jsg = domain%y(1)%global%begin
 
-      nword_me = (iec-isc+1)*(jec-jsc+1)*ke
-
-! make contiguous array from compute domain
-      m = 0
       if(global_on_this_pe) then
          !z1l: initialize global = 0 to support mask domain
          if(PRESENT(default_data)) then
@@ -387,142 +374,91 @@
 
       root_pe = mpp_root_pe()
 
-      ! Global index
-      isg = domain%x(1)%global%begin
-      jsg = domain%y(1)%global%begin
-
+      ! Generate the pelist
+      ! TODO: Add these to the domain API
+      ! TODO: Clean this shit up
       if (xonly) then
-          nd = size(domain%x(1)%list(:))
+          n_ax = size(domain%x(1)%list(:))
+          allocate(axis_pelist(n_ax))
+          axis_pelist = [ (domain%x(1)%list(i)%pe, i = 0, n_ax-1) ]
 
-          ! Generate the PE list
-          allocate(pelist(nd))
-          call mpp_get_pelist(domain%x(1), pelist)
+          nd = count(axis_pelist >= 0)
+          allocate(pelist(nd), pelist_idx(0:nd-1))
+          pelist = pack(axis_pelist, mask=(axis_pelist >= 0))
+          pelist_idx = pack([(i, i=0, n_ax-1)], mask=(axis_pelist >= 0))
 
-          ! Prepare the MPI buffers
-          !   Initialize with inert values
-          allocate(sendcounts(0:nd-1))
-          allocate(sdispls(0:nd-1))
-          allocate(sendtypes(0:nd-1))
-          sendcounts(:) = 0
-          sdispls(:) = 0
-          sendtypes(:) = 0    ! MPI_BYTE
-
-          allocate(recvcounts(0:nd-1))
-          allocate(rdispls(0:nd-1))
-          allocate(recvtypes(0:nd-1))
-          recvcounts(:) = 0
-          rdispls(:) = 0
-          recvtypes(:) = 0    ! MPI_BYTE
-
-          ! Rank/PE test
-          ! FIXME: We conditionally redefine isize/jsize later, this is unclear
-          isize = iec - isc + 1
-          jsize = jec - jsc + 1
-          ihalo = isc + ioff - 1
-          jhalo = jsc + joff - 1
-
-          ! Populate the arrays
-          do n = 0, nd - 1
-              ! Send one subarray to rank 0
-              sendcounts(n) = 1
-              sdispls(n) = 0
-
-              array_of_subsizes = [isize, jsize, size(local, 3)]
-              array_of_starts = [ihalo, jhalo, 0]
-
-              call mpp_type_create( &
-                  local, &
-                  array_of_subsizes, &
-                  array_of_starts, &
-                  sendtypes(n) &
-              )
-          end do
-
-          do n = 0, nd - 1
-              ! Each rank receives one MPI subarray type
-              recvcounts(n) = 1
-              rdispls(n) = 0
-
-              ! Index to rank
-              is = domain%x(1)%list(n)%compute%begin
-              ie = domain%x(1)%list(n)%compute%end + ishift
-              js = jsc; je = jec
-
-              isize = ie - is + 1
-              jsize = je - js + 1
-
-              array_of_subsizes = [isize, jsize, ke]
-              array_of_starts = [is - isg, js - jsg, 0]
-
-              call mpp_type_create( &
-                  global, &
-                  array_of_subsizes, &
-                  array_of_starts, &
-                  recvtypes(n) &
-              )
-          end do
+          deallocate(axis_pelist)
       else if (yonly) then
-          nd = size(domain%y(1)%list(:))
+          n_ax = size(domain%y(1)%list(:))
+          allocate(axis_pelist(n_ax))
+          axis_pelist = [ (domain%y(1)%list(i)%pe, i = 0, n_ax-1) ]
 
-          ! Generate the PE list
-          allocate(pelist(nd))
-          call mpp_get_pelist(domain%y(1), pelist)
+          nd = count(axis_pelist >= 0)
+          allocate(pelist(nd), pelist_idx(0:nd-1))
+          pelist = pack(axis_pelist, mask=(axis_pelist >= 0))
+          pelist_idx = pack([(i, i=0, n_ax-1)], mask=(axis_pelist >= 0))
 
-          ! Prepare the MPI buffers
-          !   Initialize with inert values
-          allocate(sendcounts(0:nd-1))
-          allocate(sdispls(0:nd-1))
-          allocate(sendtypes(0:nd-1))
-          sendcounts(:) = 0
-          sdispls(:) = 0
-          sendtypes(:) = 0    ! MPI_BYTE
+          deallocate(axis_pelist)
+      else
+          nd = size(domain%list(:))
+          allocate(pelist(nd), pelist_idx(0:nd-1))
+          call mpp_get_pelist(domain, pelist)
+          pelist_idx = [ (i, i=0, nd-1) ]
+      end if
 
-          allocate(recvcounts(0:nd-1))
-          allocate(rdispls(0:nd-1))
-          allocate(recvtypes(0:nd-1))
-          recvcounts(:) = 0
-          rdispls(:) = 0
-          recvtypes(:) = 0    ! MPI_BYTE
+      ! Allocate message data buffers
+      allocate(sendcounts(0:nd-1))
+      allocate(sdispls(0:nd-1))
+      allocate(sendtypes(0:nd-1))
+      sendcounts(:) = 0
+      sdispls(:) = 0
+      sendtypes(:) = 0    ! MPI_BYTE
 
-          ! Rank/PE test
-          ! FIXME: We conditionally redefine isize/jsize later, this is unclear
-          isize = iec - isc + 1
-          jsize = jec - jsc + 1
-          ihalo = isc + ioff - 1
-          jhalo = jsc + joff - 1
+      allocate(recvcounts(0:nd-1))
+      allocate(rdispls(0:nd-1))
+      allocate(recvtypes(0:nd-1))
+      recvcounts(:) = 0
+      rdispls(:) = 0
+      recvtypes(:) = 0    ! MPI_BYTE
 
-          ! Populate the arrays
+      array_of_subsizes = [iec - isc + 1, jec - jsc + 1, size(local, 3)]
+      array_of_starts = [isc + ioff - 1, jsc + joff - 1, 0]
+
+      n_sends = merge(1, nd, root_only)
+      do n = 0, n_sends - 1
+          sendcounts(n) = 1
+
+          call mpp_type_create( &
+              local, &
+              array_of_subsizes, &
+              array_of_starts, &
+              sendtypes(n) &
+          )
+      end do
+
+      ! Receive configuration
+      if (global_on_this_pe) then
           do n = 0, nd - 1
-              ! Send one subarray to rank 0
-              sendcounts(n) = 1
-              sdispls(n) = 0
-
-              array_of_subsizes = [isize, jsize, size(local, 3)]
-              array_of_starts = [ihalo, jhalo, 0]
-
-              call mpp_type_create( &
-                  local, &
-                  array_of_subsizes, &
-                  array_of_starts, &
-                  sendtypes(n) &
-              )
-          end do
-
-          do n = 0, nd - 1
-              ! Each rank receives one MPI subarray type
               recvcounts(n) = 1
-              rdispls(n) = 0
+              pe = pelist_idx(n)
 
-              ! Index to rank
-              is = isc; ie = iec
-              js = domain%y(1)%list(n)%compute%begin
-              je = domain%y(1)%list(n)%compute%end + jshift
+              if (xonly) then
+                  is = domain%x(1)%list(pe)%compute%begin
+                  ie = domain%x(1)%list(pe)%compute%end + ishift
+                  js = jsc; je = jec
+              else if (yonly) then
+                  is = isc; ie = iec
+                  js = domain%y(1)%list(pe)%compute%begin
+                  je = domain%y(1)%list(pe)%compute%end + jshift
+              else
+                  is = domain%list(pe)%x(1)%compute%begin
+                  ie = domain%list(pe)%x(1)%compute%end + ishift
+                  js = domain%list(pe)%y(1)%compute%begin
+                  je = domain%list(pe)%y(1)%compute%end + jshift
+              end if
 
-              isize = ie - is + 1
-              jsize = je - js + 1
-
-              array_of_subsizes = [isize, jsize, ke]
-              array_of_starts = [is - isg, js - jsg, 0]
+              array_of_subsizes = [ie - is + 1, je - js + 1, ke]
+              array_of_starts = [is - isg + ipos, js - jsg + jpos, 0]
 
               call mpp_type_create( &
                   global, &
@@ -531,137 +467,6 @@
                   recvtypes(n) &
               )
           end do
-      else
-         tile_id = domain%tile_id(1)
-         nd = size(domain%list(:))
-
-         ! TODO: Trial MPI_alltoallw code
-         ! NOTE: Defining types makes the prior clocal/cglobal setup code
-         ! unnecessary, so this ought to be done earlier.
-         ! If this all works out then we will do all this a bit more
-         ! strategically.
-
-         ! Generate the PE list
-         allocate(pelist(nd))
-         call mpp_get_pelist(domain, pelist)
-
-         ! Prepare the MPI buffers
-         !   Initialize with inert values
-         allocate(sendcounts(0:nd-1))
-         allocate(sdispls(0:nd-1))
-         allocate(sendtypes(0:nd-1))
-         sendcounts(:) = 0
-         sdispls(:) = 0
-         sendtypes(:) = 0    ! MPI_BYTE
-
-         allocate(recvcounts(0:nd-1))
-         allocate(rdispls(0:nd-1))
-         allocate(recvtypes(0:nd-1))
-         recvcounts(:) = 0
-         rdispls(:) = 0
-         recvtypes(:) = 0    ! MPI_BYTE
-
-         ! Rank/PE test
-         ! FIXME: We conditionally redefine isize/jsize later, this is unclear
-         isize = iec - isc + 1
-         jsize = jec - jsc + 1
-         ihalo = isc + ioff - 1
-         jhalo = jsc + joff - 1
-
-         if (root_only) then
-             ! Send one subarray to rank 0
-             sendcounts(0) = 1
-             sdispls(0) = 0
-
-             array_of_subsizes = [isize, jsize, size(local, 3)]
-             array_of_starts = [ihalo, jhalo, 0]
-
-             call mpp_type_create( &
-                 local, &
-                 array_of_subsizes, &
-                 array_of_starts, &
-                 sendtypes(0) &
-             )
-
-             if (domain%pe .EQ. domain%tile_root_pe) then
-                 ! Receive subarrays from all other ranks
-
-                 ! Each rank receives one MPI subarray type
-                 !recvcounts(:) = 1
-
-                 do n = 0, nd - 1
-                     ! Each rank receives one MPI subarray type
-                     recvcounts(n) = 1
-                     rdispls(n) = 0
-
-                     ! Index to rank
-                     rpos = mod(domain%pos + n, nd) ! FIXME: is this correct?
-                     is = domain%list(rpos)%x(1)%compute%begin
-                     ie = domain%list(rpos)%x(1)%compute%end + ishift
-                     js = domain%list(rpos)%y(1)%compute%begin
-                     je = domain%list(rpos)%y(1)%compute%end + jshift
-
-                     isize = ie - is + 1
-                     jsize = je - js + 1
-
-                     array_of_subsizes = [isize, jsize, ke]
-                     array_of_starts = [is - isg, js - jsg, 0]
-
-                     call mpp_type_create( &
-                         global, &
-                         array_of_subsizes, &
-                         array_of_starts, &
-                         recvtypes(n) &
-                     )
-                 end do
-             end if
-         else
-             do n = 0, nd - 1
-                 ! Send one subarray to rank 0
-                 sendcounts(n) = 1
-                 sdispls(n) = 0
-
-                 array_of_subsizes = [isize, jsize, size(local, 3)]
-                 array_of_starts = [ihalo, jhalo, 0]
-
-                 call mpp_type_create( &
-                     local, &
-                     array_of_subsizes, &
-                     array_of_starts, &
-                     sendtypes(n) &
-                 )
-             end do
-
-             ! Each rank receives one MPI subarray type
-             !recvcounts(:) = 1
-
-             do n = 0, nd - 1
-                 ! Each rank receives one MPI subarray type
-                 recvcounts(n) = 1
-                 rdispls(n) = 0
-
-                 ! Index to rank
-                 !rpos = mod(domain%pos + n, nd)
-                 rpos = n
-                 is = domain%list(rpos)%x(1)%compute%begin
-                 ie = domain%list(rpos)%x(1)%compute%end + ishift
-                 js = domain%list(rpos)%y(1)%compute%begin
-                 je = domain%list(rpos)%y(1)%compute%end + jshift
-
-                 isize = ie - is + 1
-                 jsize = je - js + 1
-
-                 array_of_subsizes = [isize, jsize, ke]
-                 array_of_starts = [is - isg, js - jsg, 0]
-
-                 call mpp_type_create( &
-                     global, &
-                     array_of_subsizes, &
-                     array_of_starts, &
-                     recvtypes(n) &
-                 )
-             end do
-         endif
       end if
 
       plocal(1:size(local)) => local
