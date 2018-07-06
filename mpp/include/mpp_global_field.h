@@ -49,7 +49,6 @@
       integer :: ishift, jshift
       integer :: tile
       integer :: isize, jsize
-      logical, parameter :: use_alltoallw = .true.  ! TODO: namelist variable
 
       tile = 1; if(PRESENT(tile_count)) tile = tile_count
 

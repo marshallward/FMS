@@ -698,8 +698,9 @@ module mpp_domains_mod
   logical           :: debug_message_passing = .false.
   integer           :: nthread_control_loop = 8
   logical           :: efp_sum_overflow_check = .false.
+  logical           :: use_alltoallw = .false.
   namelist /mpp_domains_nml/ debug_update_domain, domain_clocks_on, debug_message_passing, nthread_control_loop, &
-                             efp_sum_overflow_check
+                             efp_sum_overflow_check, use_alltoallw
 
   !***********************************************************************
 

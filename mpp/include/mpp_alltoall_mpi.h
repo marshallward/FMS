@@ -30,7 +30,6 @@ subroutine MPP_ALLTOALL_(sbuf, scount, rbuf, rcount, pelist)
         call mpp_error(FATAL, 'MPP_ALLTOALL: You must first call mpp_init.')
 
     n = get_peset(pelist)
-!    if (peset(n)%count .eq. 1) return
 
     if (current_clock .NE. 0) call SYSTEM_CLOCK(start_tick)
 
@@ -62,7 +61,6 @@ subroutine MPP_ALLTOALLV_(sbuf, ssize, sdispl, rbuf, rsize, rdispl, pelist)
         call mpp_error(FATAL, 'MPP_ALLTOALLV_: You must first call mpp_init.')
 
     n = get_peset(pelist)
-!    if (peset(n)%count .eq. 1) return
 
     if (current_clock .NE. 0) call SYSTEM_CLOCK(start_tick)
 
@@ -96,7 +94,6 @@ subroutine MPP_ALLTOALLW_(sbuf, ssize, sdispl, stype, &
         call mpp_error(FATAL, 'MPP_ALLTOALLW_: You must first call mpp_init.')
 
     n = get_peset(pelist)
-    !if (peset(n)%count .eq. 1) return
 
     if (current_clock .NE. 0) call SYSTEM_CLOCK(start_tick)
 
