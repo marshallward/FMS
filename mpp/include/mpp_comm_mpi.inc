@@ -34,14 +34,7 @@
   logical                       :: opened, existed
   integer                       :: unit_begin, unit_end, unit_nml, io_status
   character(len=5) :: this_pe
-
-  ! Elementary MPI datatypes used in FMS, expand as needed
-  integer, parameter, dimension(0:6) :: elem_types = [ &
-      MPI_BYTE, &
-      MPI_INTEGER4, MPI_INTEGER8, &
-      MPI_REAL4, MPI_REAL8, &
-      MPI_COMPLEX, MPI_DOUBLE_COMPLEX &
-  ]
+  type(mpp_type), pointer :: dtype
 
   if( module_is_initialized )return
 
@@ -87,19 +80,26 @@
   tick_rate = 1./ticks_per_sec
   clock0 = mpp_clock_id( 'Total runtime', flags=MPP_CLOCK_SYNC )
 
-  ! Initialize datatypes
-  allocate(datatypes(0:current_datatype_max))
+  ! Initialize data transfer types
+  datatypes%head => null()
+  datatypes%tail => null()
+  datatypes%length = 0
 
-  ! Add the elementary datatypes
-  ! NOTE: datatypes(0) is intended to denote MPI_BYTE, since it is the most
-  !       data-agnostic MPI type
-  ! TODO: Assert current_datatype_max > size(elem_types)
-  do i = 0, size(elem_types) - 1
-     datatypes(i)%etype = elem_types(i)
-     datatypes(i)%id = elem_types(i)
-     ! TODO: Other fields?
-  end do
-  current_datatype_num = size(elem_types) - 1
+  ! Create the bytestream (default) datatype
+  mpp_byte%counter = 1
+  mpp_byte%ndims = 0
+  allocate(mpp_byte%sizes(0))
+  allocate(mpp_byte%subsizes(0))
+  allocate(mpp_byte%starts(0))
+  mpp_byte%etype = MPI_BYTE
+  mpp_byte%id = MPI_BYTE
+
+  mpp_byte%prev => null()
+  mpp_byte%next => null()
+
+  ! Initialise datatype list with mpp_byte
+  datatypes%head => mpp_byte
+  datatypes%tail => mpp_byte
 
   if( PRESENT(flags) )then
      debug   = flags.EQ.MPP_DEBUG
@@ -226,6 +226,7 @@ subroutine mpp_exit()
   real    :: t, tmin, tmax, tavg, tstd
   real    :: m, mmin, mmax, mavg, mstd, t_total
   logical :: opened
+  type(mpp_type), pointer :: dtype
 
   if( .NOT.module_is_initialized )return
   call mpp_set_current_pelist()
@@ -313,10 +314,12 @@ subroutine mpp_exit()
    close(etc_unit)
   endif
 
-  ! Clear derived data types
-  ! TODO: move elem_types out of init and into module, and replace 7 w/ size()
-  do i = 7, current_datatype_num
-     call mpp_type_free(i)
+  ! Clear derived data types (skipping static head)
+  dtype => datatypes%head
+  do while (.not. associated(dtype))
+      dtype => dtype%next
+      dtype%counter = 1         ! Force deallocation
+      call mpp_type_free(dtype)
   end do
 
   call mpp_set_current_pelist()
@@ -1292,8 +1295,9 @@ end subroutine mpp_gsm_free
 #undef MPP_TYPE_
 #undef MPP_TYPE_CREATE_
 
+! NOTE: This should probably not take a pointer, but for now we do this.
 subroutine mpp_type_free(dtype)
-    integer, intent(in) :: dtype
+    type(mpp_type), pointer, intent(inout) :: dtype
 
     if (.NOT. module_is_initialized) &
         call mpp_error(FATAL, 'mpp_type_free: You must first call mpp_init.')
@@ -1305,22 +1309,22 @@ subroutine mpp_type_free(dtype)
         call mpp_error(NOTE, 'mpp_type_free: using MPI_Type_free...')
 
     ! Decrement the reference counter
-    datatypes(dtype)%counter = datatypes(dtype)%counter - 1
+    dtype%counter = dtype%counter - 1
 
-    if (datatypes(dtype)%counter < 1) then
-        call MPI_Type_free(datatypes(dtype)%id, error)
-        !deallocate(datatypes(dtype)%sizes)
-        !deallocate(datatypes(dtype)%subsizes)
-        !deallocate(datatypes(dtype)%starts)
+    if (dtype%counter < 1) then
+        ! De-register the datatype in MPI runtime
+        call MPI_Type_free(dtype%id, error)
 
-        ! TODO: Indicate a null entry?
-        ! TODO: How to remove without breaking existing indices?
-        datatypes(dtype)%ndims = -1
-        datatypes(dtype)%sizes(:) = -1
-        datatypes(dtype)%subsizes(:) = -1
-        datatypes(dtype)%starts(:) = -1
-        datatypes(dtype)%etype = -1
-        datatypes(dtype)%id = -1
+        ! Remove from list
+        dtype%prev => dtype%next
+
+        ! Remove from memory
+        if (allocated(dtype%sizes)) deallocate(dtype%sizes)
+        if (allocated(dtype%subsizes)) deallocate(dtype%subsizes)
+        if (allocated(dtype%starts)) deallocate(dtype%starts)
+        deallocate(dtype)
+
+        datatypes%length = datatypes%length - 1
     end if
 
     if (current_clock .NE. 0) &

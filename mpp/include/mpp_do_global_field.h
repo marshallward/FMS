@@ -275,7 +275,7 @@
 
       integer, dimension(:), allocatable :: sendcounts(:), recvcounts(:)
       integer, dimension(:), allocatable :: sdispls(:), rdispls(:)
-      integer, dimension(:), allocatable :: sendtypes(:), recvtypes(:)
+      type(mpp_type), allocatable :: sendtypes(:), recvtypes(:)
       integer, dimension(3) :: array_of_subsizes, array_of_starts
       integer :: n_sends, n_ax, pe
       integer :: isg, jsg
@@ -336,12 +336,12 @@
       !       domains.
       if( size(local,1).EQ.(domain%x(tile)%compute%size+ishift) .AND. size(local,2).EQ.(domain%y(tile)%compute%size+jshift) )then
          !local is on compute domain
-         ioff = -domain%x(tile)%compute%begin + 1
-         joff = -domain%y(tile)%compute%begin + 1
+         ioff = -domain%x(tile)%compute%begin
+         joff = -domain%y(tile)%compute%begin
       else if( size(local,1).EQ.(domain%x(tile)%memory%size+ishift) .AND. size(local,2).EQ.(domain%y(tile)%memory%size+jshift) )then
          !local is on data domain
-         ioff = -domain%x(tile)%data%begin + 1
-         joff = -domain%y(tile)%data%begin + 1
+         ioff = -domain%x(tile)%data%begin
+         joff = -domain%y(tile)%data%begin
       else
          call mpp_error( FATAL, 'MPP_GLOBAL_FIELD_: incoming field array must match either compute domain or memory domain.' )
       end if
@@ -412,19 +412,19 @@
       allocate(sendtypes(0:nd-1))
       sendcounts(:) = 0
       sdispls(:) = 0
-      sendtypes(:) = 0    ! MPI_BYTE
+      sendtypes(:) = mpp_byte
 
       allocate(recvcounts(0:nd-1))
       allocate(rdispls(0:nd-1))
       allocate(recvtypes(0:nd-1))
       recvcounts(:) = 0
       rdispls(:) = 0
-      recvtypes(:) = 0    ! MPI_BYTE
+      recvtypes(:) = mpp_byte
 
       array_of_subsizes = [iec - isc + 1, jec - jsc + 1, size(local, 3)]
-      array_of_starts = [isc + ioff - 1, jsc + joff - 1, 0]
+      array_of_starts = [isc + ioff, jsc + joff, 0]
 
-      n_sends = merge(1, nd, root_only)
+      n_sends = merge(1, nd, root_only) ! 1 if root_only else nd
       do n = 0, n_sends - 1
           sendcounts(n) = 1
 
@@ -486,5 +486,4 @@
 
       call mpp_sync_self()
 
-      return
     end subroutine MPP_DO_GLOBAL_FIELD_A2A_3D_

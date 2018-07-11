@@ -84,7 +84,7 @@ subroutine MPP_ALLTOALLW_(sbuf, ssize, sdispl, stype, &
 
     integer, intent(in) :: ssize(:), rsize(:)
     integer, intent(in) :: sdispl(:), rdispl(:)
-    integer, intent(in) :: stype(:), rtype(:)
+    type(mpp_type), intent(in) :: stype(:), rtype(:)
     integer, intent(in), optional :: pelist(0:)
     integer :: i, n
 
@@ -99,13 +99,13 @@ subroutine MPP_ALLTOALLW_(sbuf, ssize, sdispl, stype, &
 
     if (verbose) call mpp_error(NOTE, 'MPP_ALLTOALLW_: using MPI_Alltoallw...')
 
-    ! Convert FMS datatype IDs to MPI datatype IDs
+    ! Convert mpp_types to MPI datatype IDs
     ! NOTE: sendtypes and recvtypes must be the same size
     allocate(sendtypes(size(stype)))
     allocate(recvtypes(size(rtype)))
     do i = 1, size(stype)
-        sendtypes(i) = datatypes(stype(i))%id
-        recvtypes(i) = datatypes(rtype(i))%id
+        sendtypes(i) = stype(i)%id
+        recvtypes(i) = rtype(i)%id
     end do
 
     call MPI_Alltoallw(sbuf, ssize, sdispl, sendtypes, &

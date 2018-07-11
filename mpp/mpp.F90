@@ -239,7 +239,7 @@ private
   public :: mpp_chksum, mpp_max, mpp_min, mpp_sum, mpp_transmit, mpp_send, mpp_recv
   public :: mpp_broadcast, mpp_malloc, mpp_init, mpp_exit
   public :: mpp_gather, mpp_scatter, mpp_alltoall
-  public :: mpp_type_create, mpp_type_free
+  public :: mpp_type, mpp_byte, mpp_type_create, mpp_type_free
 #ifdef use_MPI_GSM
   public :: mpp_gsm_malloc, mpp_gsm_free
 #endif
@@ -298,19 +298,28 @@ private
      type (Clock_Data_Summary) :: event(MAX_EVENT_TYPES)
   end type Summary_Struct
 
-  ! Message data types for generalized data transfer
-  type :: datatype
+  ! Data types for generalized data transfer (e.g. MPI_Type)
+  type :: mpp_type
      private
-     !character(len=16) :: name
-     !integer, pointer :: list(:) => NULL()
-     integer :: counter ! Number of domains using this type
+     integer :: counter ! Number of instances of this type
      integer :: ndims
      integer, allocatable :: sizes(:)
      integer, allocatable :: subsizes(:)
      integer, allocatable :: starts(:)
-     integer :: etype   ! Elementary datatype
-     integer :: id      ! ID within message passing lib (e.g. MPI)
-  end type datatype
+     integer :: etype   ! Elementary data type (e.g. MPI_BYTE)
+     integer :: id      ! Identifier within message passing library (e.g. MPI)
+
+     type(mpp_type), pointer :: prev => null()
+     type(mpp_type), pointer :: next => null()
+  end type mpp_type
+
+  ! Persisent elements for linked list interaction
+  type :: mpp_type_list
+      private
+      type(mpp_type), pointer :: head => null()
+      type(mpp_type), pointer :: tail => null()
+      integer :: length
+  end type mpp_type_list
 
 !***********************************************************************
 !
@@ -1249,9 +1258,8 @@ private
   integer              :: clock_num=0, num_clock_ids=0,current_clock=0, previous_clock(MAX_CLOCKS)=0
   real                 :: tick_rate
 
-  type(datatype), allocatable :: datatypes(:)
-  integer              :: current_datatype_max = 100000
-  integer              :: current_datatype_num = 0
+  type(mpp_type_list)    :: datatypes
+  type(mpp_type), target :: mpp_byte
 
   integer              :: cur_send_request = 0
   integer              :: cur_recv_request = 0
