@@ -18,7 +18,6 @@
 !***********************************************************************
 
 subroutine MPP_ALLTOALL_(sbuf, scount, rbuf, rcount, pelist)
-
     MPP_TYPE_, intent(in) :: sbuf(:)
     MPP_TYPE_, intent(inout) :: rbuf(:)
     integer,   intent(in) :: scount, rcount
@@ -46,7 +45,6 @@ end subroutine MPP_ALLTOALL_
 
 
 subroutine MPP_ALLTOALLV_(sbuf, ssize, sdispl, rbuf, rsize, rdispl, pelist)
-
     MPP_TYPE_, intent(in) :: sbuf(:)
     MPP_TYPE_, intent(inout) :: rbuf(:)
 
@@ -78,7 +76,6 @@ end subroutine MPP_ALLTOALLV_
 
 subroutine MPP_ALLTOALLW_(sbuf, ssize, sdispl, stype, &
                           rbuf, rsize, rdispl, rtype, pelist)
-
     MPP_TYPE_, intent(in) :: sbuf(:)
     MPP_TYPE_, intent(inout) :: rbuf(:)
 

@@ -80,12 +80,7 @@
   tick_rate = 1./ticks_per_sec
   clock0 = mpp_clock_id( 'Total runtime', flags=MPP_CLOCK_SYNC )
 
-  ! Initialize data transfer types
-  datatypes%head => null()
-  datatypes%tail => null()
-  datatypes%length = 0
-
-  ! Create the bytestream (default) datatype
+  ! Create the bytestream (default) mpp_datatype
   mpp_byte%counter = 1
   mpp_byte%ndims = 0
   allocate(mpp_byte%sizes(0))
@@ -97,9 +92,10 @@
   mpp_byte%prev => null()
   mpp_byte%next => null()
 
-  ! Initialise datatype list with mpp_byte
+  ! Initialize datatype list with mpp_byte
   datatypes%head => mpp_byte
   datatypes%tail => mpp_byte
+  datatypes%length = 0
 
   if( PRESENT(flags) )then
      debug   = flags.EQ.MPP_DEBUG
@@ -314,7 +310,7 @@ subroutine mpp_exit()
    close(etc_unit)
   endif
 
-  ! Clear derived data types (skipping static head)
+  ! Clear derived data types (skipping list head, mpp_byte)
   dtype => datatypes%head
   do while (.not. associated(dtype))
       dtype => dtype%next
@@ -327,8 +323,6 @@ subroutine mpp_exit()
   call mpp_max(mpp_stack_hwm)
   if( pe.EQ.root_pe )write( out_unit,* )'MPP_STACK high water mark=', mpp_stack_hwm
   if(mpp_comm_private == MPI_COMM_WORLD ) call MPI_FINALIZE(error)
-
-
 
   return
 end subroutine mpp_exit
@@ -1300,13 +1294,13 @@ subroutine mpp_type_free(dtype)
     type(mpp_type), pointer, intent(inout) :: dtype
 
     if (.NOT. module_is_initialized) &
-        call mpp_error(FATAL, 'mpp_type_free: You must first call mpp_init.')
+        call mpp_error(FATAL, 'MPP_TYPE_FREE: You must first call mpp_init.')
 
     if (current_clock .NE. 0) &
         call SYSTEM_CLOCK(start_tick)
 
     if (verbose) &
-        call mpp_error(NOTE, 'mpp_type_free: using MPI_Type_free...')
+        call mpp_error(NOTE, 'MPP_TYPE_FREE: using MPI_Type_free...')
 
     ! Decrement the reference counter
     dtype%counter = dtype%counter - 1
