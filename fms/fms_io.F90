@@ -8449,8 +8449,16 @@ subroutine parse_mask_table_2d(mask_table, maskmap, modelname)
                   "does not match size of maskmap for "//trim(modelname))
         endif
         !--- make sure mpp_npes() == layout(1)*layout(2) - nmask
-        if( mpp_npes() .NE. layout(1)*layout(2) - nmask ) call mpp_error(FATAL, &
-           "fms_io(parse_mask_table_2d): mpp_npes() .NE. layout(1)*layout(2) - nmask for "//trim(modelname))
+        if(mpp_npes() .NE. layout(1)*layout(2) - nmask) then
+            write (stdoutunit, *) "layout:", layout
+            write (stdoutunit, *) "nmask:", nmask
+            write (stdoutunit, *) "mpp_npes():", mpp_npes()
+            call mpp_error(FATAL, &
+                    "fms2_io(parse_mask_table_2d): &
+                    mpp_npes() .NE. layout(1)*layout(2) - nmask for " &
+                    // trim(modelname) &
+            )
+        endif
       endif
    endif
 
@@ -8534,10 +8542,15 @@ subroutine parse_mask_table_3d(mask_table, maskmap, modelname)
                   "does not match size of maskmap for "//trim(modelname))
         endif
         !--- make sure mpp_npes() == layout(1)*layout(2) - nmask
-        if( mpp_npes() .NE. layout(1)*layout(2)*ntiles - nmask ) then
-           print*, "layout=", layout, nmask, mpp_npes()
-           call mpp_error(FATAL, &
-              "fms_io(parse_mask_table_3d): mpp_npes() .NE. layout(1)*layout(2) - nmask for "//trim(modelname))
+        if(mpp_npes() .NE. layout(1)*layout(2) - nmask) then
+            write (stdoutunit, *) "layout:", layout
+            write (stdoutunit, *) "nmask:", nmask
+            write (stdoutunit, *) "mpp_npes():", mpp_npes()
+            call mpp_error(FATAL, &
+                    "fms_io(parse_mask_table_3d): &
+                    mpp_npes() .NE. layout(1)*layout(2) - nmask for " &
+                    // trim(modelname) &
+            )
         endif
       endif
    endif
