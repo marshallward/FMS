@@ -644,13 +644,21 @@ function netcdf_file_open(fileobj, path, mode, nc_format, pelist, is_restart, do
     endif
 
     if (string_compare(mode, "read", .true.)) then
+      print *, "START nf90_open 1"
       err = nf90_open(trim(fileobj%path), nf90_nowrite, fileobj%ncid, chunksize=fms2_ncchksz)
+      print *, "DONE nf90_open 1"
     elseif (string_compare(mode, "append", .true.)) then
+      print *, "START nf90_open 2"
       err = nf90_open(trim(fileobj%path), nf90_write, fileobj%ncid, chunksize=fms2_ncchksz)
+      print *, "DONE nf90_open 2"
     elseif (string_compare(mode, "write", .true.)) then
+      print *, "START nf90_create 1"
       err = nf90_create(trim(fileobj%path), ior(nf90_noclobber, nc_format_param), fileobj%ncid, chunksize=fms2_ncchksz)
+      print *, "DONE nf90_create 1"
     elseif (string_compare(mode,"overwrite",.true.)) then
+      print *, "START nf90_create 2"
       err = nf90_create(trim(fileobj%path), ior(nf90_clobber, nc_format_param), fileobj%ncid, chunksize=fms2_ncchksz)
+      print *, "DONE nf90_create 2"
     else
       call error("unrecognized file mode: '"//trim(mode)//"' for file:"//trim(fileobj%path)//&
                  &"Check your open_file call, the acceptable values are read, append, write, overwrite")

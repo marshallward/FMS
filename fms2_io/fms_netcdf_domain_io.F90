@@ -354,9 +354,12 @@ function open_domain_file(fileobj, path, mode, domain, nc_format, is_restart, do
   logical :: success2
   type(FmsNetcdfDomainFile_t) :: fileobj2
 
+  print *, "start open_domain_file"
   !Get the path of a "combined" file.
   io_layout = mpp_get_io_domain_layout(domain)
+  print *, "DONE mpp_get_io_domain_layout"
   tile_id = mpp_get_tile_id(domain)
+  print *, "DONE mpp_get_tile_id"
 
   !< If the number of tiles is greater than 1 or if the current tile is greater
   !than 1 add .tileX. to the filename
@@ -378,6 +381,8 @@ function open_domain_file(fileobj, path, mode, domain, nc_format, is_restart, do
     call string_copy(distributed_filepath, combined_filepath)
   endif
 
+  print *, "DONE filepath mangle"
+
   !Make sure the input domain has an I/O domain and get its pelist.
   pelist_size = mpp_get_domain_npes(io_domain)
   allocate(pelist(pelist_size))
@@ -385,8 +390,10 @@ function open_domain_file(fileobj, path, mode, domain, nc_format, is_restart, do
   fileobj%adjust_indices = .true. !Set the default to true
 
   !Open the distibuted files.
+  print *, "START netcdf_file_open"
   success = netcdf_file_open(fileobj, distributed_filepath, mode, nc_format, pelist, &
                              is_restart, dont_add_res_to_filename)
+  print *, "DONE netcdf_file_open"
   if (string_compare(mode, "read", .true.) .or. string_compare(mode, "append", .true.)) then
     if (success) then
       if (.not. string_compare(distributed_filepath, combined_filepath)) then
@@ -408,6 +415,7 @@ function open_domain_file(fileobj, path, mode, domain, nc_format, is_restart, do
     deallocate(pelist)
     return
   endif
+  print *, "DONE extra reads...?"
 
   !Store/initialize necessary properties.
   call string_copy(fileobj%non_mangled_path, path)
@@ -417,11 +425,13 @@ function open_domain_file(fileobj, path, mode, domain, nc_format, is_restart, do
   allocate(fileobj%ydims(max_num_domain_decomposed_dims))
   fileobj%ny = 0
   call string_copy(fileobj%non_mangled_path, path)
+  print *, "DONE string_copy.."
 
   if (string_compare(mode, "write", .true.) .or. string_compare(mode, "overwrite", .true.)) then
     !Add global attribute needed by mppnccombine.
     call register_global_attribute(fileobj, "NumFilesInSet", io_layout(1)*io_layout(2))
   endif
+  print *, "DONE open_domain_file"
 end function open_domain_file
 
 
