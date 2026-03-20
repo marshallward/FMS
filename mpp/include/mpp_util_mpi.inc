@@ -1,22 +1,21 @@
 ! -*-f90-*-
 
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 !> @file
 !> @brief Utility routines for parallelization with MPI
@@ -35,7 +34,7 @@
 subroutine mpp_error_basic( errortype, errormsg )
 #ifdef __INTEL_COMPILER
   ! Intel module containing tracebackQQ
-   use ifcore
+   use ifcore, only: tracebackqq
 #endif
   integer,                    intent(in) :: errortype
   character(len=*), intent(in), optional :: errormsg
@@ -138,8 +137,8 @@ function get_peset(pelist)
   allocate(pelist_tmp(size(pelist(:))))
   pelist_tmp = pelist - mpp_root_pe()
   call MPI_GROUP_INCL( peset(current_peset_num)%group, size(pelist(:)), pelist_tmp, peset(i)%group, error )
-  call MPI_COMM_CREATE_GROUP(peset(current_peset_num)%id, peset(i)%group, &
-                             DEFAULT_TAG, peset(i)%id, error )
+  call MPI_COMM_CREATE_GROUP(peset(current_peset_num)%comm, peset(i)%group, &
+                             DEFAULT_TAG, peset(i)%comm, error )
   get_peset = i
   deallocate(pelist_tmp)
   return
@@ -160,7 +159,7 @@ subroutine mpp_sync( pelist, do_self )
   n = get_peset(pelist); if( peset(n)%count.EQ.1 )return
 
   if( debug .and. (current_clock.NE.0) )call SYSTEM_CLOCK(start_tick)
-  call MPI_BARRIER( peset(n)%id, error )
+  call MPI_BARRIER( peset(n)%comm, error )
 
   if( debug .and. (current_clock.NE.0) )call increment_current_clock(EVENT_WAIT)
 
@@ -174,9 +173,9 @@ end subroutine mpp_sync
 subroutine mpp_sync_self( pelist, check, request, msg_size, msg_type)
   integer, intent(in), optional :: pelist(:)
   integer, intent(in), optional :: check
-  integer, intent(inout), optional :: request(:)
+  type(mpi_request), intent(inout), optional :: request(:)
   integer, intent(in   ), optional :: msg_size(:)
-  integer, intent(in   ), optional :: msg_type(:)
+  type(mpi_datatype), intent(in   ), optional :: msg_type(:)
 
   integer                       :: m, my_check, rsize
 

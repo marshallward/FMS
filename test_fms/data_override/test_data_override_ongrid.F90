@@ -1,20 +1,19 @@
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 
 program test_data_override_ongrid
@@ -36,6 +35,7 @@ use netcdf,            only: nf90_create, nf90_def_dim, nf90_def_var, nf90_endde
                              nf90_double, nf90_unlimited
 use ensemble_manager_mod, only: get_ensemble_size, ensemble_manager_init
 use fms_mod, only: string, fms_init, fms_end
+use fms_test_mod, only: permutable_indices_2d, factorial, permute_arr
 
 implicit none
 
@@ -138,30 +138,46 @@ else
 
   select case (test_case)
   case (ongrid)
-    call ongrid_test_r4
-    call ongrid_test_r8
+    call run_tests(ongrid_test_r4, 2)
+    call run_tests(ongrid_test_r8, 2)
   case (bilinear)
-    call bilinear_test_r4
-    call bilinear_test_r8
+    call run_tests(bilinear_test_r4, 2)
+    call run_tests(bilinear_test_r8, 2)
   case (scalar)
     call scalar_test_r4
     call scalar_test_r8
   case (weight_file)
-    call weight_file_test_r4
-    call weight_file_test_r8
+    call run_tests(weight_file_test_r4, 2)
+    call run_tests(weight_file_test_r8, 2)
   case (ensemble_case, ensemble_same_yaml)
-    call ensemble_test_r4
-    call ensemble_test_r8
+    call run_tests(ensemble_test_r4, 2)
+    call run_tests(ensemble_test_r8, 2)
     call mpp_set_current_pelist(pelist)
   case (multi_file)
-    call multi_file_r4
-    call multi_file_r8
+    call run_tests(multi_file_r4, 2)
+    call run_tests(multi_file_r8, 2)
   end select
 endif
 
 call fms_end
 
 contains
+
+subroutine run_tests(test, ndims)
+  interface
+    subroutine test_permuted_indices(f)
+      integer, intent(in) :: f
+    end subroutine test_permuted_indices
+  end interface
+
+  procedure(test_permuted_indices) :: test
+  integer, intent(in) :: ndims
+  integer :: p
+
+  do p=1,factorial(ndims)
+    call test(p)
+  enddo
+end subroutine run_tests
 
 subroutine create_grid_spec_file
   type(FmsNetcdfFile_t) :: fileobj

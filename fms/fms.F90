@@ -1,20 +1,19 @@
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 !> @defgroup fms_mod fms_mod
 !> @ingroup fms
@@ -321,9 +320,9 @@ subroutine fms_init (localcomm, alt_input_nml_path)
     call mpp_domains_init()
     call fms2_io_init()
 #ifdef use_deprecated_io
-      call mpp_error(NOTE, "fms_io_init: fms_io HAS BEEN DEPRECATED! "//&
+      call mpp_error(ERROR, "fms_io_init: fms_io/mpp_io was removed in the 2025.03 release of FMS! "//&
                            "PLEASE REMOVE -Duse_deprecated_io FROM YOUR COMPILE FLAGS "// &
-                           "AND MOVE TO FMS2_IO. CONTACT YOUR MODEL LIASISON IF YOU NEED "// &
+                           "AND MOVE TO FMS2_IO. CONTACT YOUR GFDL MODEL LIAISON IF YOU NEED "// &
                            "ASSISTANCE")
 #endif
     logunitnum = stdlog()

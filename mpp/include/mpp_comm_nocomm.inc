@@ -1,22 +1,21 @@
 ! -*-f90-*-
 
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 !> @file
 !> @brief Routines to initialize and finalize @ref mpp_mod without MPI.
@@ -27,9 +26,9 @@
 !                                                                             !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !> @brief Initialize the @ref mpp_mod module
-subroutine mpp_init( flags, localcomm, test_level, alt_input_nml_path )
+subroutine mpp_init_f08( flags, localcomm, test_level, alt_input_nml_path )
   integer, optional, intent(in) :: flags !< Flags for debug output, can be MPP_VERBOSE or MPP_DEBUG
-  integer, optional, intent(in) :: localcomm !< Id of MPI communicator used to initialize
+  type(mpi_comm), optional, intent(in) :: localcomm !< Id of MPI communicator used to initialize
   integer, optional, intent(in) :: test_level !< Used to exit initialization at certain stages
                                               !! before completion for testing purposes
   character(len=*), optional, intent(in) :: alt_input_nml_path !< Input path for namelist
@@ -51,14 +50,14 @@ subroutine mpp_init( flags, localcomm, test_level, alt_input_nml_path )
   allocate(peset(0:0))
   !PEsets: make defaults illegal
   peset(:)%count = -1
-  peset(:)%id = -1
-  peset(:)%group = -1
+  peset(:)%comm = MPI_COMM_NULL
+  peset(:)%group = MPI_GROUP_NULL
   !0=single-PE, initialized so that count returns 1
   peset(0)%count = 1
   allocate( peset(0)%list(1) )
   peset(0)%list = pe
   current_peset_num = 0
-  peset(0)%id = 0
+  peset(0)%comm = MPI_COMM_NULL
   world_peset_num = 0
   current_peset_num = world_peset_num !initialize current PEset to world
   if(t_level == 1) return
@@ -82,8 +81,8 @@ subroutine mpp_init( flags, localcomm, test_level, alt_input_nml_path )
   allocate(mpp_byte%sizes(0))
   allocate(mpp_byte%subsizes(0))
   allocate(mpp_byte%starts(0))
-  mpp_byte%etype = -1
-  mpp_byte%id = -1
+  mpp_byte%etype = MPI_DATATYPE_NULL
+  mpp_byte%id = MPI_DATATYPE_NULL
 
   mpp_byte%prev => null()
   mpp_byte%next => null()
@@ -136,7 +135,7 @@ subroutine mpp_init( flags, localcomm, test_level, alt_input_nml_path )
   call mpp_clock_begin(clock0)
 
   return
-end subroutine mpp_init
+end subroutine mpp_init_f08
 
 !#######################################################################
 !> @brief To be called at the end of a run

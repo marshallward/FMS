@@ -1,20 +1,19 @@
 #***********************************************************************
-#*                   GNU Lesser General Public License
+#*                             Apache License 2.0
 #*
 #* This file is part of the GFDL Flexible Modeling System (FMS).
 #*
-#* FMS is free software: you can redistribute it and/or modify it under
-#* the terms of the GNU Lesser General Public License as published by
-#* the Free Software Foundation, either version 3 of the License, or (at
-#* your option) any later version.
+#* Licensed under the Apache License, Version 2.0 (the "License");
+#* you may not use this file except in compliance with the License.
+#* You may obtain a copy of the License at
+#*
+#*     http://www.apache.org/licenses/LICENSE-2.0
 #*
 #* FMS is distributed in the hope that it will be useful, but WITHOUT
-#* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-#* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-#* for more details.
-#*
-#* You should have received a copy of the GNU Lesser General Public
-#* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+#* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+#* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+#* PARTICULAR PURPOSE. See the License for the specific language
+#* governing permissions and limitations under the License.
 #***********************************************************************
 
 # ===========================================================================
@@ -25,7 +24,6 @@
 #   GX_FC_DEFAULT_REAL_KIND4_FLAG([ACTION-IF-SUCCESS], [ACTION-IF-FAILURE = FAILURE])
 #   GX_FC_QUAD_PRECISION()
 #   GX_FC_CRAY_POINTER_FLAG([ACTION-IF-SUCCESS], [ACTION-IF-FAILURE = FAILURE])
-#   GX_FC_INTERNAL_FILE_NML()
 #   GX_FC_CHECK_MOD(module-name, [only], [action-if-found], [action-if-not-found])
 #   GX_FC_MOD_OUTPUT_CASE([ACTION-IF-SUCCESS], [ACTION-IF-FAILURE])
 #
@@ -37,28 +35,19 @@
 #
 # LICENSE
 #
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
 #   Copyright (c) 2019,2020 Seth Underwood <underwoo@underwoo.io>
-#
-#   This program is free software; you can redistribute it and/or modify it
-#   under the terms of the GNU General Public License as published by the
-#   Free Software Foundation; either version 3 of the License, or (at your
-#   option) any later version.
-#
-#   This program is distributed in the hope that it will be useful, but
-#   WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
-#   Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License along
-#   with this program. If not, see <https://www.gnu.org/licenses/>.
-#
-#   As a special exception, the respective Autoconf Macro's copyright owner
-#   gives unlimited permission to copy, distribute and modify the configure
-#   scripts that are the output of Autoconf when processing the Macro. You
-#   need not follow the terms of the GNU General Public License when using
-#   or distributing such scripts, even though portions of the text of the
-#   Macro appear in them. The GNU General Public License (GPL) does govern
-#   all other use of the material that constitutes the Autoconf Macro.
 
 # GX_FC_DEFAULT_REAL_KIND8_FLAG([ACTION-IF-SUCCESS], [ACTION-IF-FAILURE = FAILURE])
 # ----------------------------------------------------------------------
@@ -242,32 +231,6 @@ else
 fi
 AC_LANG_POP([Fortran])
 AC_SUBST([FC_CRAY_POINTER_FLAG])
-])
-
-# GX_FC_INTERNAL_FILE_NML
-# -----------------------------------------------------------------------------
-# Determine if the Fortran compiler supports reading Fortran namelists from
-# an internal file.  If supported, sets the define HAVE_INTERNAL_NML.
-AC_DEFUN([GX_FC_INTERNAL_FILE_NML],[
-AC_LANG_PUSH([Fortran])
-AC_CACHE_CHECK([if $[]_AC_FC[] supports reading namelists from internal files], [gx_cv_fc_internal_file_nml],[
-gx_cv_fc_internal_file_nml=unknown
-AC_COMPILE_IFELSE([[      program test
-      implicit none
-      integer :: a = 1
-      real :: b = 0.1
-      character(LEN=20) :: internal_nml ="&test_nml a=2 b=1.0/"
-      namelist /test_nml/ a, b
-      read(internal_nml,test_nml)
-      end program test]],
-   [gx_cv_fc_internal_file_nml=yes],
-   [gx_cv_fc_internal_file_nml=no])])
-if test "x$gx_cv_fc_internal_file_nml" = "xyes"; then
-   AC_DEFINE([HAVE_INTERNAL_NML], 1,
-             [Define to 1 if your Fortran compiler supports reading namelists
-              from internal files])
-fi
-AC_LANG_POP([Fortran])
 ])
 
 # GX_FC_CHECK_MOD(module-name, [only], [action-if-found], [action-if-not-found])

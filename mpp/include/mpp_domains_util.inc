@@ -1,22 +1,21 @@
 ! -*-f90-*-
 
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 
 !> @file
@@ -690,20 +689,40 @@ function mpp_get_domain_tile_root_pe(domain)
 end function mpp_get_domain_tile_root_pe
 
 
+function mpp_get_domain_tile_comm(domain)
+   type(domain2d), intent(in) :: domain                   !> domain you are querying for information
+   type(mpi_comm)             :: mpp_get_domain_tile_comm !> Handle to the tile communicator
+
+   mpp_get_domain_tile_comm = domain%tile_comm
+
+end function mpp_get_domain_tile_comm
+
+
 function mpp_get_domain_tile_commid(domain)
    type(domain2d), intent(in) :: domain                     !> domain you are querying for information
-   integer                    :: mpp_get_domain_tile_commid !> declaration of the return tile communicator
+   integer                    :: mpp_get_domain_tile_commid !> ID of the tile communicator
 
-   mpp_get_domain_tile_commid = domain%tile_comm_id
+   call mpp_error(NOTE, "mpp_get_domain_tile_commid is deprecated: Please use mpp_get_domain_tile_comm instead")
+   mpp_get_domain_tile_commid = domain%tile_comm%mpi_val
 
 end function mpp_get_domain_tile_commid
 
 
+function mpp_get_domain_comm(domain)
+   type(domain2d), intent(in) :: domain              !> domain you are querying for information
+   type(mpi_comm)             :: mpp_get_domain_comm !> Handle to the domain communicator
+
+   mpp_get_domain_comm = domain%comm
+
+end function mpp_get_domain_comm
+
+
 function mpp_get_domain_commid(domain)
    type(domain2d), intent(in) :: domain                !> domain you are querying for information
-   integer                    :: mpp_get_domain_commid !> declaration of the return domain communicator
+   integer                    :: mpp_get_domain_commid !> ID of the domain communicator
 
-   mpp_get_domain_commid = domain%comm_id
+   call mpp_error(NOTE, "mpp_get_domain_commid is deprecated: Please use mpp_get_domain_comm instead")
+   mpp_get_domain_commid = domain%comm%mpi_val
 
 end function mpp_get_domain_commid
 

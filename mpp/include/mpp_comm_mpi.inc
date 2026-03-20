@@ -1,22 +1,21 @@
 ! -*-f90-*-
 
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 !> @file
 !> @brief Routines to initialize and finalize @ref mpp_mod with mpi enabled.
@@ -30,10 +29,11 @@
 !                                                                             !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !> @brief Initialize the @ref mpp_mod module. Must be called before any usage.
-  subroutine mpp_init( flags, localcomm, test_level, alt_input_nml_path )
+  subroutine mpp_init_f08( flags, localcomm, test_level, alt_input_nml_path )
   !$ use omp_lib
   integer, optional, intent(in) :: flags !< Flags for debug output, can be MPP_VERBOSE or MPP_DEBUG
-  integer, optional, intent(in) :: localcomm !< Id of MPI communicator used to initialize
+  type(mpi_comm), optional, intent(in) :: localcomm !< MPI communicator to use. Only relevant if MPI has already
+                                               !! been initialized by an external call to mpi_init.
   integer, optional, intent(in) :: test_level !< Used to exit initialization at certain stages
                                               !! before completion for testing purposes
   character(len=*), optional, intent(in) :: alt_input_nml_path !< Input path for namelist
@@ -44,14 +44,20 @@
 
   if( module_is_initialized )return
 
-  call MPI_INITIALIZED( opened, error ) !in case called from another MPI package
-  if(opened .and. .NOT. PRESENT(localcomm)) call mpp_error( FATAL, 'MPP_INIT: communicator is required' )
-  if( .NOT.opened ) then
-    call MPI_INIT(error)
-    mpp_comm_private = MPI_COMM_WORLD
+  ! Check if MPI has already been initialized by an external call to mpi_init.
+  call MPI_INITIALIZED( opened, error )
+
+  if (opened) then
+    if (present(localcomm)) then
+      mpp_comm_private = localcomm
+    else
+      call mpp_error(FATAL, 'mpp_init: A communicator handle is required')
+    endif
   else
-    mpp_comm_private  = localcomm
+    call MPI_INIT(error)
+    mpp_comm_private = mpi_comm_world
   endif
+
   call MPI_COMM_RANK( mpp_comm_private, pe,   error )
   call MPI_COMM_SIZE( mpp_comm_private, npes, error )
 
@@ -74,8 +80,8 @@
   !PEsets: make defaults illegal
   allocate(peset(0:current_peset_max))
   peset(:)%count = -1
-  peset(:)%id = -1
-  peset(:)%group = -1
+  peset(:)%comm = MPI_COMM_NULL
+  peset(:)%group = MPI_GROUP_NULL
   peset(:)%start = -1
   peset(:)%log2stride = -1
   peset(:)%name  = " "
@@ -84,7 +90,7 @@
   allocate( peset(0)%list(1) )
   peset(0)%list = pe
   current_peset_num = 0
-  peset(0)%id = mpp_comm_private
+  peset(0)%comm = mpp_comm_private
   call MPI_COMM_GROUP( mpp_comm_private, peset(0)%group, error )
   world_peset_num = get_peset( (/(i,i=0,npes-1)/) )
   current_peset_num = world_peset_num !initialize current PEset to world
@@ -166,7 +172,7 @@
   request_send(:) = MPI_REQUEST_NULL
   request_recv(:) = MPI_REQUEST_NULL
   size_recv(:)    = 0
-  type_recv(:)    = 0
+  type_recv(:)    = MPI_DATATYPE_NULL
 
   if (t_level == 7) return
 
@@ -190,7 +196,7 @@
   call mpp_clock_begin(clock0)
 
   return
-end subroutine mpp_init
+end subroutine mpp_init_f08
 
 !#######################################################################
 !> Finalizes process termination. To be called at the end of a run.
@@ -364,7 +370,7 @@ end subroutine mpp_exit
       enddo
       lptr = LOC (char_data)
       if( mpp_npes().GT.1 ) call MPI_BCAST( char_data, length*size(char_data(:)), &
-         MPI_CHARACTER, from_rank, peset(n)%id, error )
+         MPI_CHARACTER, from_rank, peset(n)%comm, error )
       if( debug .and. (current_clock.NE.0) )call increment_current_clock( EVENT_BROADCAST, length )
       return
     end subroutine mpp_broadcast_char

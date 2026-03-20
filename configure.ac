@@ -1,20 +1,19 @@
 #***********************************************************************
-#*                   GNU Lesser General Public License
+#*                             Apache License 2.0
 #*
 #* This file is part of the GFDL Flexible Modeling System (FMS).
 #*
-#* FMS is free software: you can redistribute it and/or modify it under
-#* the terms of the GNU Lesser General Public License as published by
-#* the Free Software Foundation, either version 3 of the License, or (at
-#* your option) any later version.
+#* Licensed under the Apache License, Version 2.0 (the "License");
+#* you may not use this file except in compliance with the License.
+#* You may obtain a copy of the License at
+#*
+#*     http://www.apache.org/licenses/LICENSE-2.0
 #*
 #* FMS is distributed in the hope that it will be useful, but WITHOUT
-#* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-#* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-#* for more details.
-#*
-#* You should have received a copy of the GNU Lesser General Public
-#* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+#* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+#* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+#* PARTICULAR PURPOSE. See the License for the specific language
+#* governing permissions and limitations under the License.
 #***********************************************************************
 
 # This is the main configure file for the FMS package.
@@ -25,7 +24,7 @@ AC_PREREQ([2.69])
 
 # Initialize with name, version, and support email address.
 AC_INIT([GFDL FMS Library],
-  [2025.03-dev],
+  [2026.01.01],
   [gfdl.climate.model.info@noaa.gov],
   [FMS],
   [https://www.github.com/NOAA-GFDL/FMS])
@@ -97,17 +96,6 @@ AC_ARG_ENABLE([8byte-int],
 AS_IF([test ${enable_8byte_int:-no} = yes],
   [enable_8byte_int=yes],
   [enable_8byte_int=no])
-
-AC_ARG_ENABLE([deprecated-io],
-  [AS_HELP_STRING([--enable-deprecated-io],
-    [THIS OPTION HAS BEEN DEPRECATED!!!])])
-AS_IF([test ${enable_deprecated_io:-no} = yes],
-  [enable_deprecated_io=yes],
-  [enable_deprecated_io=no])
-
-if test $enable_deprecated_io = yes; then
-  AC_MSG_ERROR(FMS_IO HAS BEEN REMOVED! PLEASE UPDATE TO USE FMS2_IO AND REMOVE --enable-deprecated-io FROM YOUR CONFIGURE OPTIONS OR REVERT TO VERSION 2025.02)
-fi
 
 AC_ARG_ENABLE([r8-default],
   [AS_HELP_STRING([--disable-r8-default],
@@ -238,6 +226,21 @@ AC_CHECK_FUNCS([sched_getaffinity], [], [])
 
 # Check if the compiler needs special OpenMP flags
 AC_OPENMP()
+
+# Check if building with OpenACC support.  Default is 'no'
+AC_ARG_ENABLE([openacc],
+  [AS_HELP_STRING([--enable-openacc],
+    [Builds with support for OpenACC directives. (default no)])])
+AS_IF([test ${enable_openacc:-no} = yes],
+  [enable_openacc=yes],
+  [enable_openacc=no])
+
+# If openacc support enabled, test for correct flags
+AS_IF([test ${enable_openacc} = yes],
+      [ACX_LANG_OPENACC_FLAG(
+				[AS_VAR_APPEND([CFLAGS], [" $acx_cv_c_openacc_flag"])], []
+			 )])
+
 AC_LANG_POP(C)
 
 # Fortran specific checks
@@ -301,11 +304,17 @@ GX_FC_CRAY_POINTER_FLAG()
 # Check if Fortran compiler and system have quad precision support
 GX_FC_QUAD_PRECISION()
 
-# Check if Fortran compiler supports reading namelists from internal files
-GX_FC_INTERNAL_FILE_NML()
-
 # Check if the compiler needs special OpenMP flags
 AC_OPENMP()
+
+# need to set preprocessor for openacc check below
+AC_FC_PP_SRCEXT([F90])
+
+# Check for openacc fortran flags
+AS_IF([test ${enable_openacc} = yes],
+      [ACX_LANG_OPENACC_FLAG(
+				[AS_VAR_APPEND([FCFLAGS], [" $acx_cv_fc_openacc_flag"])], []
+			 )])
 
 AC_LANG_POP(Fortran)
 
@@ -521,6 +530,7 @@ AC_CONFIG_FILES([
   diag_integral/Makefile
   sat_vapor_pres/Makefile
   random_numbers/Makefile
+  offloading/Makefile
   libFMS/Makefile
   docs/Makefile
   parser/Makefile
@@ -528,6 +538,7 @@ AC_CONFIG_FILES([
   test_fms/test-lib.sh
   test_fms/intel_coverage.sh
   test_fms/Makefile
+  test_fms/common/Makefile
   test_fms/astronomy/Makefile
   test_fms/diag_manager/Makefile
   test_fms/data_override/Makefile
@@ -555,6 +566,7 @@ AC_CONFIG_FILES([
   test_fms/random_numbers/Makefile
   test_fms/topography/Makefile
   test_fms/column_diagnostics/Makefile
+  test_fms/offloading/Makefile
   test_fms/block_control/Makefile
   FMS.pc
   ])

@@ -1,20 +1,19 @@
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 !> @file
 !> @brief Routines for defining and managing unstructured grids
@@ -26,8 +25,10 @@
                                        &  grid_index, name)
      type(domainUG),   intent(inout) :: UG_domain
      type(domain2d), target,     intent(in) :: SG_domain
-     integer,                    intent(in) :: npts_tile(:) !< number of unstructured points on each tile
-     integer,                    intent(in) :: grid_nlev(:) !< number of levels in each unstructured grid.
+     integer,                    intent(in) :: npts_tile(:) !< number of unstructured points in
+                                                            !! each mosaic tile
+     integer,                    intent(in) :: grid_nlev(:) !< number of levels (subgrid tiles) in
+                                                            !! each unstructured grid cell.
      integer,                    intent(in) :: ndivs
      integer,                    intent(in) :: npes_io_group!< number of processors in a io group.
                                                             !! Only pe with same tile_id
@@ -56,7 +57,7 @@
            &  "mpp_define_unstruct_domain: grid_nlev at some point is less than 1")
      enddo
 
-     !-- costs for each tile.
+     !-- costs for each mosaic tile.
      pos = 0
      do n = 1, ntiles
         costs(n) = 0
@@ -65,11 +66,11 @@
            costs(n) = costs(n) + grid_nlev(pos)
         enddo
      enddo
-     ! compute number of divisions for each tile.
+     ! compute number of divisions for each mosaic tile.
      ntotal_costs = sum(costs)
-     !--- get the upper limit of ndivs for each tile.
+     !--- get the upper limit of ndivs for each mosaic tile.
      do n = 1, ntiles
-        ndivs_tile(n) = CEILING(real(costs(n)*ndivs)/ntotal_costs)
+        ndivs_tile(n) = CEILING(real(costs(n),kind=r8_kind)*real(ndivs,kind=r8_kind)/ntotal_costs)
      enddo
 
      ndivs_used = sum(ndivs_tile)

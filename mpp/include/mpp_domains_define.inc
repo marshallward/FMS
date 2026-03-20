@@ -1,21 +1,20 @@
 ! -*-f90-*-
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 
 !> @file
@@ -644,7 +643,8 @@
 
     integer              :: i, j, m, n, xhalosz, yhalosz, memory_xsize, memory_ysize
     integer              :: whalosz, ehalosz, shalosz, nhalosz
-    integer              :: ipos, jpos, pos, tile, nlist, cur_tile_id, cur_comm_id
+    integer              :: ipos, jpos, pos, tile, nlist, cur_tile_id
+    type(mpi_comm)       :: cur_comm
     integer              :: ndivx, ndivy, isg, ieg, jsg, jeg, ishift, jshift, errunit, logunit
     integer              :: x_offset, y_offset, start_pos, nfold
     logical              :: from_mosaic, is_complete
@@ -684,22 +684,22 @@
     cur_tile_id = 1
     if(present(tile_id)) cur_tile_id = tile_id
 
-    cur_comm_id=0
+    cur_comm = mpi_comm_null
     if( PRESENT(pelist) )then
        allocate( pes(0:size(pelist(:))-1) )
        pes = pelist
        if(from_mosaic) then
           allocate( pesall(0:mpp_npes()-1) )
-          call mpp_get_current_pelist(pesall, commID=cur_comm_id)
+          call mpp_get_current_pelist(pesall, comm=cur_comm)
        else
           allocate( pesall(0:size(pes(:))-1) )
           pesall = pes
-          call mpp_get_current_pelist(pesall, commID=cur_comm_id)
+          call mpp_get_current_pelist(pesall, comm=cur_comm)
        end if
     else
        allocate( pes(0:mpp_npes()-1) )
        allocate( pesall(0:mpp_npes()-1) )
-       call mpp_get_current_pelist(pes, commID=cur_comm_id)
+       call mpp_get_current_pelist(pes, comm=cur_comm)
        pesall = pes
     end if
 
@@ -797,7 +797,7 @@
        allocate(domain%tile_id_all(1))
        domain%tile_id        = cur_tile_id
        domain%tile_id_all    = cur_tile_id
-       domain%tile_comm_id   = cur_comm_id
+       domain%tile_comm      = cur_comm
        domain%ntiles         = 1
        domain%max_ntile_pe   = 1
        domain%ncontacts      = 0
@@ -856,7 +856,7 @@
     if( ANY(pes == mpp_pe()) ) then
        domain%io_layout = layout
        domain%tile_root_pe  = pes(0)
-       domain%comm_id   = cur_comm_id
+       domain%comm = cur_comm
        if( ipos.EQ.NULL_PE .OR. jpos.EQ.NULL_PE ) &
             call mpp_error( FATAL, 'MPP_DEFINE_DOMAINS2D: pelist must include this PE for '//trim(domain%name) )
        if( debug ) then
@@ -1262,7 +1262,7 @@ end subroutine check_message_size
             'mpp_domains_define.inc: size of pelist is not equal mpp_npes')
        pes = pelist
     end if
-    call mpp_get_current_pelist(pes, commID=domain%comm_id)
+    call mpp_get_current_pelist(pes, comm=domain%comm)
     !--- pelist should be monotonic increasing by 1.
     do n = 1, nlist-1
        if(pes(n) - pes(n-1) .NE. 1) call mpp_error(FATAL, &
@@ -1383,7 +1383,7 @@ end subroutine check_message_size
     allocate(tile_count(pes(0):pes(0)+nlist-1))
     tile_count = 0  ! tile number on current pe
 
-    domain%tile_comm_id=0
+    domain%tile_comm = mpi_comm_null
     do n = 1, num_tile
        allocate(mask(layout(1,n), layout(2,n)))
        allocate(pelist_tile(pe_start(n):pe_end(n)) )
@@ -1393,7 +1393,7 @@ end subroutine check_message_size
        end do
        !--- set the tile communicator
        if (ANY(pelist_tile == pe)) then
-         call mpp_declare_pelist(pelist_tile, commID=domain%tile_comm_id)
+         call mpp_declare_pelist(pelist_tile, comm=domain%tile_comm)
        endif
        mask = .TRUE.
        if(present(maskmap))  mask = maskmap(1:layout(1,n), 1:layout(2,n), n)

@@ -1,20 +1,19 @@
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 !> @file
 !! @brief unit test for the mpp_root_pe() function
@@ -959,8 +958,8 @@ contains
 !!  see smithsonian meteorological tables page 350.
       x = -7.90298_r8_kind*(TBASW/tem(i)-one) &
            +5.02808_r8_kind*log10(TBASW/tem(i)) &
-           -1.3816e-07_r8_kind*(ten**((one-tem(i)/TBASW)*11.344_r8_kind)-one)    &
-           +8.1328e-03_r8_kind*(ten**((TBASW/tem(i)-one)*-3.49149_r8_kind)-one)&
+           -1.3816e-07_r8_kind*(ten**(11.344_r8_kind  *(one-tem(i)/TBASW))-one) &
+           +8.1328e-03_r8_kind*(ten**(-3.49149_r8_kind*(TBASW/tem(i)-one))-one) &
            +log10(ESBASW)
       esh2o = ten**(x)
       es(i) = esh2o

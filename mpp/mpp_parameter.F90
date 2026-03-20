@@ -1,20 +1,19 @@
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 !> @defgroup mpp_parameter_mod mpp_parameter_mod
 !> @ingroup mpp
@@ -63,10 +62,8 @@ module mpp_parameter_mod
 
   !--- public parameters which is used by mpp_domains_mod and its components.
   !--- All othere modules should import these parameters from mpp_io_mod.
-  public :: MPP_WRONLY, MPP_RDONLY, MPP_APPEND, MPP_OVERWR, MPP_ASCII, MPP_IEEE32
-  public :: MPP_NATIVE, MPP_NETCDF, MPP_SEQUENTIAL, MPP_DIRECT, MPP_SINGLE, MPP_MULTI
-  public :: MPP_DELETE, MPP_COLLECT, NULLUNIT, NULLTIME
-  public :: MAX_FILE_SIZE, ROOT_GLOBAL, GLOBAL_ROOT_ONLY
+  public :: ROOT_GLOBAL, GLOBAL_ROOT_ONLY
+  public :: r4_kind, r8_kind
 
   !--- The following parameters are used by mpp_mod and its components.
   integer, parameter :: MAXPES=2048            !used for dimensioning stuff that might be indexed by pe
@@ -132,15 +129,6 @@ module mpp_parameter_mod
   integer, parameter :: MAX_DOMAIN_FIELDS=100
   integer, parameter :: MAX_TILES=10
 
-  !--- The following parameters are used by mpp_io_mod and its components.
-  integer, parameter :: MPP_WRONLY=100, MPP_RDONLY=101, MPP_APPEND=102, MPP_OVERWR=103 !< action on open
-  integer, parameter :: MPP_ASCII=200,  MPP_IEEE32=201, MPP_NATIVE=202, MPP_NETCDF=203 !< format
-  integer, parameter :: MPP_SEQUENTIAL=300, MPP_DIRECT=301 !< access
-  integer, parameter :: MPP_SINGLE=400, MPP_MULTI=401      !< threading, fileset
-  integer, parameter :: MPP_DELETE=501, MPP_COLLECT=502    !< action on close
-  integer, parameter :: NULLUNIT=-1                        !< returned by PEs not participating in
-                                                           !! IO after collective call with threading
-                                                           !! equal to MPP_SINGLE
   !--- unique tag used in FMS
   integer, parameter :: COMM_TAG_1  = 1,  COMM_TAG_2  = 2,  COMM_TAG_3  = 3,  COMM_TAG_4  = 4
   integer, parameter :: COMM_TAG_5  = 5,  COMM_TAG_6  = 6,  COMM_TAG_7  = 7,  COMM_TAG_8  = 8
@@ -151,11 +139,6 @@ module mpp_parameter_mod
   integer, parameter :: ROOT_GLOBAL = 9
   integer, parameter :: GLOBAL_ROOT_ONLY = 2**ROOT_GLOBAL
   real(r8_kind), parameter :: NULLTIME=-1.
-#ifdef LARGE_FILE
-  integer(i8_kind), parameter :: MAX_FILE_SIZE = 4294967295
-#else
-  integer(i8_kind), parameter :: MAX_FILE_SIZE = 2147483647
-#endif
 
   !#####################################################################
 

@@ -1,21 +1,20 @@
 ! -*-f90-*-
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                             Apache License 2.0
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS).
 !*
-!* FMS is free software: you can redistribute it and/or modify it under
-!* the terms of the GNU Lesser General Public License as published by
-!* the Free Software Foundation, either version 3 of the License, or (at
-!* your option) any later version.
+!* Licensed under the Apache License, Version 2.0 (the "License");
+!* you may not use this file except in compliance with the License.
+!* You may obtain a copy of the License at
+!*
+!*     http://www.apache.org/licenses/LICENSE-2.0
 !*
 !* FMS is distributed in the hope that it will be useful, but WITHOUT
-!* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-!* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-!* for more details.
-!*
-!* You should have received a copy of the GNU Lesser General Public
-!* License along with FMS.  If not, see <http://www.gnu.org/licenses/>.
+!* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied;
+!* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+!* PARTICULAR PURPOSE. See the License for the specific language
+!* governing permissions and limitations under the License.
 !***********************************************************************
 !> @addtogroup mpp_domains_mod
 !> @{
@@ -38,7 +37,7 @@ subroutine MPP_START_DO_UPDATE_3D_(id_update, f_addrs, domain, update, d_type, k
   integer                     :: is, ie, js, je, sendsize, recvsize
   logical                     :: send(8), recv(8), update_edge_only
   integer                     :: l_size, ke_sum
-  integer                     :: request
+  type(mpi_request)           :: request
   integer                     :: send_msgsize(MAXLIST)
   character(len=128)          :: text
   MPP_TYPE_                   :: buffer(size(mpp_domains_stack_nonblock(:)))
@@ -310,12 +309,8 @@ subroutine MPP_COMPLETE_DO_UPDATE_3D_(id_update, f_addrs, domain, update, d_type
                         msg_size=nonblock_data(id_update)%size_recv(1:count),                     &
                         msg_type=nonblock_data(id_update)%type_recv(1:count) )
      call mpp_clock_end(wait_clock_nonblock)
-#ifdef use_libMPI
-     nonblock_data(id_update)%request_recv(:)    = MPI_REQUEST_NULL
-#else
-     nonblock_data(id_update)%request_recv(:)    = 0
-#endif
-     nonblock_data(id_update)%type_recv(:) = 0
+     nonblock_data(id_update)%request_recv(:) = MPI_REQUEST_NULL
+     nonblock_data(id_update)%type_recv(:) = MPI_DATATYPE_NULL
   endif
 
   !--unpack the data
@@ -364,11 +359,7 @@ subroutine MPP_COMPLETE_DO_UPDATE_3D_(id_update, f_addrs, domain, update, d_type
      call mpp_sync_self(check=EVENT_SEND, request=nonblock_data(id_update)%request_send(1:count))
      call mpp_clock_end(wait_clock_nonblock)
      nonblock_data(id_update)%request_send_count = 0
-#ifdef use_libMPI
      nonblock_data(id_update)%request_send(:)    = MPI_REQUEST_NULL
-#else
-     nonblock_data(id_update)%request_send(:)    = 0
-#endif
   endif
 
 !  call init_nonblock_type(nonblock_data(id_update))
